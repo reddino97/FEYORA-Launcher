@@ -1,0 +1,43 @@
+/* Correzioni layout launcher gamepad */
+
+/* L'area di scroll contiene ingrandimento, outline e ombra del tile selezionato. */
+#carousel-rail {
+  padding: 1rem;
+  margin: 0;
+  scroll-padding: 1rem;
+}
+
+/* Il riepilogo resta nel flusso quando è selezionato "+". */
+.hero-stats.is-add-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Lo scrollIntoView del gamepad lascia spazio all'header fisso. */
+#store-q {
+  scroll-margin-top: 6rem;
+}
+
+.app-header {
+  min-height: 5rem;
+}
+
+.store-fav {
+  position: absolute;
+  right: .5rem;
+  bottom: .5rem;
+  z-index: 3;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: rgb(var(--c-on-surface));
+  background: rgb(var(--c-surface-container-lowest) / .82);
+  backdrop-filter: blur(8px);
+}
+
+.store-fav .material-symbols-outlined { font-size: 1.15rem; }
+.store-fav.on { color: rgb(var(--c-error)); background: rgb(var(--c-surface-container-lowest) / .94); }
+.store-fav.focused { box-shadow: 0 0 0 2px rgb(var(--c-focus)); }
