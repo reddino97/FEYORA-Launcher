@@ -1,0 +1,11 @@
+@font-face{font-family:'Sora';font-weight:600;font-style:normal;font-display:swap;src:url('/static/fonts/sora-latin-600-normal.woff2') format('woff2');}
+@font-face{font-family:'Sora';font-weight:700;font-style:normal;font-display:swap;src:url('/static/fonts/sora-latin-700-normal.woff2') format('woff2');}
+@font-face{font-family:'Sora';font-weight:800;font-style:normal;font-display:swap;src:url('/static/fonts/sora-latin-800-normal.woff2') format('woff2');}
+@font-face{font-family:'Manrope';font-weight:400;font-style:normal;font-display:swap;src:url('/static/fonts/manrope-latin-400-normal.woff2') format('woff2');}
+@font-face{font-family:'Manrope';font-weight:500;font-style:normal;font-display:swap;src:url('/static/fonts/manrope-latin-500-normal.woff2') format('woff2');}
+@font-face{font-family:'Manrope';font-weight:600;font-style:normal;font-display:swap;src:url('/static/fonts/manrope-latin-600-normal.woff2') format('woff2');}
+@font-face{font-family:'Manrope';font-weight:700;font-style:normal;font-display:swap;src:url('/static/fonts/manrope-latin-700-normal.woff2') format('woff2');}
+@font-face{font-family:'JetBrains Mono';font-weight:500;font-style:normal;font-display:swap;src:url('/static/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');}
+@font-face{font-family:'JetBrains Mono';font-weight:600;font-style:normal;font-display:swap;src:url('/static/fonts/jetbrains-mono-latin-600-normal.woff2') format('woff2');}
+@font-face{font-family:'JetBrains Mono';font-weight:700;font-style:normal;font-display:swap;src:url('/static/fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2');}
+@font-face{font-family:'Material Symbols Outlined';font-style:normal;font-weight:100 700;font-display:block;src:url('/static/fonts/material-symbols-outlined.woff2') format('woff2');}
