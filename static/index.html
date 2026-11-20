@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html class="dark" lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FEYORA Launcher - Obsidian Kinetic</title>
+<link rel="icon" type="image/x-icon" href="/static/icon.ico">
+<link rel="icon" type="image/png" href="/static/icon.png">
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/launcher-fixes.css">
+</head>
+<body class="font-body-md text-body-md text-on-surface select-none antialiased min-h-screen flex flex-col justify-between overflow-x-hidden">
+<div id="app" class="relative min-h-screen flex flex-col justify-between overflow-hidden">
+
+  <!-- ==================== TOP NAVIGATION BAR ==================== -->
+  <header class="fixed top-0 left-0 right-0 z-50 pointer-events-auto app-header"
+          style="background: linear-gradient(to bottom, rgba(0,0,0,.96) 0%, rgba(0,0,0,.72) 52%, rgba(0,0,0,0) 100%);">
+    <div class="h-20 w-full max-w-[1720px] mx-auto px-space-xl lg:px-margin-tv grid grid-cols-12 items-center">
+
+      <div class="col-span-3 flex items-center gap-space-sm justify-start">
+        <button id="avbtn" class="flex items-center gap-space-sm bg-surface-container-low px-space-sm py-space-xs rounded-full shadow-[0_2px_12px_rgba(0,0,0,0.3)] cursor-pointer">
+          <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-on-primary-container text-[18px]">person</span>
+          </div>
+          <div class="flex items-center gap-space-xs pr-space-xs">
+            <span id="user-nickname" class="font-label-lg text-label-lg text-primary-fixed">GIOCATORE 1</span>
+            <span class="px-space-xs py-0.5 rounded-full bg-surface-container-highest text-primary font-label-md text-label-md flex items-center">
+              <span class="material-symbols-outlined text-[12px] mr-0.5">schedule</span>
+              <span id="user-level">0H</span>
+            </span>
+          </div>
+        </button>
+        <div class="hidden sm:flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md bg-surface-container-low px-space-sm py-space-xs rounded-full">
+          <span class="material-symbols-outlined text-[16px] text-primary">sports_esports</span>
+          <span id="header-games-count" class="text-primary font-bold">0</span>
+        </div>
+      </div>
+
+      <div class="col-span-6 flex items-center justify-center gap-space-sm">
+        <span class="px-space-sm py-space-xs rounded-full bg-surface-container-low font-label-lg text-label-lg text-primary tracking-wider select-none shrink-0">L1</span>
+        <nav id="cats-nav" class="flex items-center gap-space-xs bg-surface-container-low p-1.5 rounded-full backdrop-blur-xl"></nav>
+        <span class="px-space-sm py-space-xs rounded-full bg-surface-container-low font-label-lg text-label-lg text-primary tracking-wider select-none shrink-0">R1</span>
+      </div>
+
+      <div class="col-span-3 flex items-center justify-end gap-space-md">
+        <div class="flex items-center gap-space-sm px-space-md py-1.5 rounded-full bg-surface-container-low shadow-md">
+          <span id="net-ic" class="material-symbols-outlined text-[18px] text-primary" title="Rete" data-i18n-title="tip.net">wifi</span>
+          <div id="gp-pill" class="flex items-center gap-1 text-on-surface-variant" title="Controller" data-i18n-title="tip.pad">
+            <span class="material-symbols-outlined text-[18px] text-primary/80">sports_esports</span>
+            <span id="gp-name" class="font-label-md text-label-md hidden xl:inline">Gamepad</span>
+          </div>
+          <div class="flex items-center gap-1 pl-1 border-l border-outline-variant/25">
+            <button id="fsbtn" class="w-7 h-7 rounded-full flex items-center justify-center text-on-surface cursor-pointer" title="Schermo intero [F11]" data-i18n-title="tip.fullscreen">
+              <span class="material-symbols-outlined text-[18px]">fullscreen</span>
+            </button>
+            <button id="setbtn" class="w-7 h-7 rounded-full flex items-center justify-center text-primary cursor-pointer" title="Impostazioni [Start]" data-i18n-title="tip.settings">
+              <span class="material-symbols-outlined text-[18px]">tune</span>
+            </button>
+          </div>
+        </div>
+        <div class="flex flex-col items-end pl-2">
+          <span id="clock" class="font-headline-md text-headline-md text-on-surface font-bold tracking-tight leading-none drop-shadow-md whitespace-nowrap">--:--</span>
+          <span id="clock-date" class="font-label-md text-[10px] tracking-widest uppercase text-on-surface/70 font-semibold mt-1 whitespace-nowrap">&nbsp;</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN VIEWPORT ==================== -->
+  <main class="w-full pb-8 flex-1 flex flex-col justify-between relative min-h-screen pt-20">
+    <div class="flex flex-col w-full relative overflow-hidden select-none min-h-[calc(100vh-4rem)] justify-between">
+
+      <!-- Dynamic Ambient Kinetic Canvas -->
+      <div class="absolute inset-0 pointer-events-none -z-10">
+        <div id="ambient-glow" class="absolute -top-40 -left-20 w-[950px] h-[800px] rounded-full blur-[140px] transition-all duration-700"></div>
+        <div class="absolute top-1/4 right-0 w-[600px] h-[600px] bg-secondary-container/15 rounded-full blur-[160px]"></div>
+        <div class="absolute -bottom-32 left-1/3 w-[800px] h-[500px] bg-tertiary-container/10 rounded-full blur-[130px]"></div>
+        <div class="absolute inset-0 opacity-[0.03] bg-[radial-gradient(rgb(var(--c-primary))_1px,transparent_1px)] [background-size:24px_24px]"></div>
+      </div>
+
+      <!-- Background Key Art Layer with Smooth Opacity Crossfade -->
+      <div class="fixed inset-0 pointer-events-none -z-20 overflow-hidden" id="backdrop-container">
+        <div id="backdrop-layer-a" class="backdrop-layer active"></div>
+        <div id="backdrop-layer-b" class="backdrop-layer"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/70 to-surface/20"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-surface/85 via-surface/40 to-transparent"></div>
+      </div>
+
+      <!-- Main Layout Container -->
+      <div id="home-content" class="w-full px-space-xl lg:px-margin-tv max-w-[1720px] mx-auto flex flex-col justify-between pt-6 pb-8 min-h-[calc(100vh-5rem)] gap-space-xl">
+
+        <!-- ===== HERO ===== -->
+        <div id="hero-spotlight" class="flex flex-col lg:flex-row lg:items-end justify-between gap-gutter mt-2">
+          <div class="flex flex-col gap-space-sm max-w-3xl">
+
+            <div id="hero-badges" class="flex items-center gap-space-sm flex-wrap">
+              <div id="hero-status-pill" class="flex items-center gap-space-xs px-space-md py-1 rounded-full bg-primary-container text-on-primary-container shadow-md font-bold">
+                <span class="w-2 h-2 rounded-full bg-on-primary-container animate-pulse"></span>
+                <span class="material-symbols-outlined text-[16px]">play_arrow</span>
+                <span id="hero-status-text" class="font-label-md text-label-md uppercase tracking-wider font-bold">PRONTO</span>
+              </div>
+              <div id="hero-platform-pill" class="flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container-high/80 backdrop-blur-md text-on-surface border border-outline-variant/20">
+                <span class="material-symbols-outlined text-[15px] text-primary">verified</span>
+                <span id="hero-platform-text" class="font-label-md text-label-md font-medium">STEAM</span>
+              </div>
+              <div id="hero-custom-art-badge" class="hidden flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container-high/80 backdrop-blur-md text-on-surface border border-outline-variant/20">
+                <span class="material-symbols-outlined text-[15px] text-primary">image</span>
+                <span data-i18n="hero.custom_cover" class="uppercase font-label-md text-label-md font-medium">Cover personalizzata</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col mt-1">
+              <div class="flex items-center gap-space-sm">
+                <span id="hero-category-label" class="font-label-lg text-label-lg text-primary-fixed tracking-widest uppercase">GIOCO INSTALLATO</span>
+                <div class="h-px w-16 bg-primary-fixed/30"></div>
+              </div>
+              <div id="hero-title-box" class="marquee-box my-2">
+                <h1 id="hero-title" class="marquee-content font-display-hero text-display-hero text-on-surface uppercase tracking-tight leading-none drop-shadow-[0_4px_32px_rgba(0,0,0,0.85)] tracking-wider"></h1>
+              </div>
+              <div id="hero-subtitle-box" class="marquee-box -mt-1">
+                <p id="hero-subtitle" class="marquee-content font-headline-md text-headline-md text-primary tracking-wider uppercase font-bold tracking-widest"></p>
+              </div>
+            </div>
+
+            <div id="hero-specs" class="flex items-center gap-space-sm flex-wrap text-on-surface-variant font-label-md text-label-md mt-1">
+              <span id="hero-size-pill" class="flex items-center gap-1 px-space-sm py-0.5 rounded-full bg-surface-container-highest/90 text-primary border border-outline-variant/15">
+                <span class="material-symbols-outlined text-[14px]">hard_drive</span><span>--</span>
+              </span>
+              <span id="hero-hours-pill" class="flex items-center gap-1 px-space-sm py-0.5 rounded-full bg-surface-container-highest/90 text-on-surface border border-outline-variant/15">
+                <span class="material-symbols-outlined text-[14px] text-primary">schedule</span><span>--</span>
+              </span>
+              <span id="hero-last-pill" class="flex items-center gap-1 px-space-sm py-0.5 rounded-full bg-surface-container-highest/90 text-on-surface/80 border border-outline-variant/15">
+                <span class="material-symbols-outlined text-[14px] text-primary">history</span><span>--</span>
+              </span>
+            </div>
+
+            <div id="actions-strip" class="flex items-center gap-space-md mt-3 flex-wrap">
+              <button id="btn-play" data-f class="fbtn group flex items-center gap-space-md px-space-xl py-space-md rounded-full bg-primary-container text-on-primary-container shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer shadow-[0_0_24px_rgb(var(--c-primary-container)/0.4)]">
+                <div class="w-8 h-8 rounded-full bg-on-primary-container text-primary-container flex items-center justify-center font-label-lg text-label-lg font-bold kb-a">A</div>
+                <span id="btn-play-label" class="font-headline-sm text-headline-sm font-extrabold tracking-wide">AVVIA GIOCO</span>
+                <span class="material-symbols-outlined text-[24px] group-hover:translate-x-1 transition-transform">play_arrow</span>
+              </button>
+              <button id="btn-cover" data-f class="fbtn flex items-center gap-space-sm px-space-lg py-space-md rounded-full bg-surface-container-high/80 hover:bg-surface-container-highest text-on-surface border border-outline-variant/25 backdrop-blur-xl shadow-md transition-all cursor-pointer">
+                <div class="w-6 h-6 rounded-full bg-surface-container-highest text-primary flex items-center justify-center font-label-md text-label-md font-bold kb-x">X</div>
+                <span class="material-symbols-outlined text-[18px] text-primary">image</span>
+                <span id="lbl-cover" class="font-headline-sm text-headline-sm font-semibold" data-i18n="btn.cover">Copertina</span>
+              </button>
+              <button id="btn-fav" data-f class="fbtn flex items-center gap-space-sm px-space-lg py-space-md rounded-full bg-surface-container-high/80 hover:bg-surface-container-highest text-on-surface border border-outline-variant/25 backdrop-blur-xl shadow-md transition-all cursor-pointer">
+                <div class="w-6 h-6 rounded-full bg-surface-container-highest text-primary flex items-center justify-center font-label-md text-label-md font-bold kb-y">Y</div>
+                <span id="fav-icon" class="material-symbols-outlined text-[18px] text-primary">favorite_border</span>
+                <span id="fav-label" class="font-headline-sm text-headline-sm font-semibold">Preferito</span>
+              </button>
+              <button id="btn-details" data-f class="fbtn flex items-center gap-space-sm px-space-lg py-space-md rounded-full bg-surface-container-high/80 hover:bg-surface-container-highest text-on-surface border border-outline-variant/25 backdrop-blur-xl shadow-md transition-all cursor-pointer">
+                <span class="material-symbols-outlined text-[18px] text-primary">info</span>
+                <span id="lbl-details" class="font-headline-sm text-headline-sm font-semibold" data-i18n="btn.details">Dettagli</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="hero-stats" class="w-full lg:w-96 flex flex-col gap-space-md bg-surface-container-low/75 backdrop-blur-2xl p-space-lg rounded-lg shadow-xl">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-2">
+              <div class="flex items-center gap-space-xs text-on-surface font-label-md text-label-md">
+                <span class="material-symbols-outlined text-[18px] text-primary">timer</span>
+                <span id="lbl-playtime" class="text-on-surface/70 font-semibold tracking-wide uppercase" data-i18n="stats.playtime">Tempo di gioco</span>
+              </div>
+              <span id="card-playtime" class="font-label-lg text-label-lg font-bold text-primary bg-surface-container-high/60 px-2 py-0.5 rounded-full">0h</span>
+            </div>
+            <div class="flex flex-col gap-space-xs">
+              <div class="flex items-center justify-between text-body-sm font-body-sm">
+                <span class="flex items-center gap-1.5 text-on-surface font-bold">
+                  <span class="material-symbols-outlined text-[18px] text-primary">pie_chart</span>
+                  <span id="lbl-share" data-i18n="stats.share">Quota del tempo totale</span>
+                </span>
+                <span id="card-trophies-pct" class="font-label-md text-label-md text-primary font-bold">0%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-surface-container-highest overflow-hidden">
+                <div id="card-trophies-bar" class="h-full bg-primary rounded-full shadow-[0_0_12px_rgb(var(--c-primary)/0.7)] transition-all duration-500" style="width:0%"></div>
+              </div>
+              <div class="flex items-center justify-between text-on-surface font-label-md text-[11px] pt-1">
+                <span id="card-last-played" class="flex items-center gap-1 text-on-surface">
+                  <span class="material-symbols-outlined text-[13px] text-primary">history</span> Ultimo avvio: --
+                </span>
+              </div>
+            </div>
+            <div class="p-space-sm rounded-DEFAULT bg-surface-container/80 border border-outline-variant/20 flex items-center gap-space-sm">
+              <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0 text-primary">
+                <span class="material-symbols-outlined text-[20px]">folder</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <div class="flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[14px] text-primary">my_location</span>
+                  <span id="lbl-path" class="font-label-md text-label-md text-primary font-semibold truncate uppercase" data-i18n="stats.path">Percorso installazione</span>
+                </div>
+                <span id="card-path-text" class="font-body-md text-body-md text-on-surface font-semibold truncate drop-shadow-sm">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== LIBRERIA RAPIDA ===== -->
+        <div id="carousel-section" class="flex flex-col gap-space-sm mt-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-space-md">
+              <span id="lbl-library" class="font-headline-sm text-headline-sm text-on-surface font-bold uppercase tracking-wider" data-i18n="lib.title">Libreria rapida</span>
+              <span id="carousel-count-badge" class="font-label-md text-label-md text-on-surface-variant">0 titoli</span>
+            </div>
+            <div class="flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
+              <span class="material-symbols-outlined text-[18px] text-primary">sort</span>
+              <span id="sort-label" class="uppercase font-bold tracking-wider">Recenti</span>
+            </div>
+          </div>
+          <div id="carousel-rail" class="flex gap-gutter-sm p-4 -m-4 overflow-x-auto no-scrollbar"></div>
+          <div id="carousel-empty" class="hidden py-10 px-6 text-center bg-surface-container-low/60 rounded-2xl">
+            <span class="material-symbols-outlined text-4xl text-primary">search_off</span>
+            <h3 class="font-headline-sm text-on-surface mt-2 font-bold" data-i18n="lib.empty_title">Nessun gioco in questa categoria</h3>
+            <p class="font-body-sm text-on-surface-variant mt-1" data-i18n="lib.empty_desc">Scegli un'altra categoria o risincronizza la libreria.</p>
+            <button id="empty-rescan-btn" class="mt-4 px-6 py-2 rounded-full bg-primary-container text-on-primary-container font-label-md font-bold" data-i18n="lib.reload">
+              Ricarica Libreria Ora
+            </button>
+          </div>
+        </div>
+
+        <!-- ===== WIDGET ===== -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-gutter-sm mt-4 mb-2 items-stretch">
+
+          <!-- Spotify -->
+          <div id="w-spotify" class="md:col-span-4 bg-surface-container-low/75 backdrop-blur-2xl rounded-lg p-space-md shadow-xl flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-space-xs">
+                <div class="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_rgb(var(--c-primary)/0.7)]"></div>
+                <span class="font-label-md text-label-md text-primary tracking-wider uppercase font-bold">Spotify</span>
+              </div>
+              <div id="sp-eq" class="eq flex items-end gap-0.5 h-4"><span></span><span></span><span></span><span></span><span></span></div>
+            </div>
+            <div class="flex items-center gap-space-md">
+              <div class="w-14 h-14 rounded-DEFAULT overflow-hidden shadow-lg shrink-0 bg-surface-container-high">
+                <div id="sp-art" class="w-full h-full bg-cover bg-center flex items-center justify-center text-on-surface-variant"></div>
+              </div>
+              <div class="flex flex-col min-w-0 flex-1">
+                <span id="sp-title" class="font-headline-sm text-headline-sm font-bold text-on-surface truncate">Non disponibile</span>
+                <span id="sp-artist" class="font-body-sm text-body-sm text-on-surface-variant truncate">--</span>
+                <div class="w-full h-1 rounded-full bg-surface-container-highest mt-2 overflow-hidden"><div id="sp-bar" class="h-full bg-primary rounded-full shadow-[0_0_8px_rgb(var(--c-primary)/0.7)]" style="width:0%"></div></div>
+              </div>
+              <div class="flex items-center gap-space-xs shrink-0">
+                <button id="sp-prev" data-f class="fbtn w-8 h-8 rounded-full bg-surface-container-high/80 text-on-surface flex items-center justify-center cursor-pointer"><span class="material-symbols-outlined text-[18px]">skip_previous</span></button>
+                <button id="sp-play" data-f class="fbtn w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center cursor-pointer"><span id="sp-play-ic" class="material-symbols-outlined text-[20px]">play_arrow</span></button>
+                <button id="sp-next" data-f class="fbtn w-8 h-8 rounded-full bg-surface-container-high/80 text-on-surface flex items-center justify-center cursor-pointer"><span class="material-symbols-outlined text-[18px]">skip_next</span></button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between mt-3 pt-2 text-on-surface-variant font-label-md text-label-md border-t border-outline-variant/15">
+              <div id="sp-time" class="flex items-center gap-1.5 text-on-surface"><span class="material-symbols-outlined text-[15px] text-primary">schedule</span> 0:00 / 0:00</div>
+              <button id="sp-open" data-f class="fbtn flex items-center gap-1 text-primary font-semibold cursor-pointer"><span class="material-symbols-outlined text-[15px]">open_in_new</span><span id="lbl-sp-open" data-i18n="w.open_spotify">Apri Spotify</span></button>
+            </div>
+          </div>
+
+          <!-- Collegamenti: Discord e Browser -->
+          <div id="w-links" class="md:col-span-3 bg-surface-container-low/75 backdrop-blur-2xl rounded-lg p-space-md shadow-xl flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-space-xs">
+                <div class="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_rgb(var(--c-primary)/0.7)]"></div>
+                <span id="lbl-links" class="font-label-md text-label-md text-on-surface tracking-wider uppercase font-bold" data-i18n="w.links">Collegamenti</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-space-sm">
+              <button id="dc-open" data-f class="fbtn flex-1 flex items-center justify-center gap-space-xs h-10 rounded-full bg-surface-container-high/80 text-on-surface cursor-pointer" title="Discord">
+                <span class="material-symbols-outlined text-[18px] text-primary">headset_mic</span>
+                <span class="font-label-lg text-label-lg font-bold">Discord</span>
+              </button>
+              <button id="br-open" data-f class="fbtn flex-1 flex items-center justify-center gap-space-xs h-10 rounded-full bg-surface-container-high/80 text-on-surface cursor-pointer" title="Browser" data-i18n-title="w.browser">
+                <span class="material-symbols-outlined text-[18px] text-primary">language</span>
+                <span id="lbl-browser" class="font-label-lg text-label-lg font-bold" data-i18n="w.browser">Browser</span>
+              </button>
+            </div>
+            <div class="flex items-center justify-between mt-3 pt-2 text-on-surface-variant font-label-md text-label-md border-t border-outline-variant/15">
+              <div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[15px] text-primary">open_in_new</span><span id="lbl-links-hint" data-i18n="w.links_hint">Si aprono fuori dal launcher</span></div>
+            </div>
+          </div>
+
+          <!-- Telemetria -->
+          <div id="w-telemetry" class="md:col-span-5 bg-surface-container-low/75 backdrop-blur-2xl rounded-lg p-space-md shadow-xl flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-space-xs">
+                <span class="material-symbols-outlined text-[16px] text-primary">memory</span>
+                <span id="lbl-telemetry" class="font-label-md text-label-md text-primary tracking-wider uppercase font-bold" data-i18n="w.telemetry">Telemetria PC</span>
+              </div>
+              <div class="flex items-center gap-space-xs">
+                <span id="lib-count-pill" class="px-space-xs py-0.5 rounded-full bg-surface-container-highest text-primary font-label-md text-[10px]">0 GIOCHI</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-space-md">
+              <div class="p-space-xs rounded-DEFAULT bg-surface-container/70 flex flex-col gap-1">
+                <div class="flex items-center justify-between text-on-surface-variant font-label-md text-label-md">
+                  <span class="truncate flex items-center gap-1 text-on-surface"><span class="material-symbols-outlined text-[14px] text-primary">memory</span>CPU</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden mr-2"><div id="telemetry-cpu-bar" class="bg-primary h-full rounded-full shadow-[0_0_8px_rgb(var(--c-primary)/0.6)]" style="width:0%"></div></div>
+                  <span id="telemetry-cpu-val" class="font-label-md text-label-md text-on-surface font-semibold shrink-0">0%</span>
+                </div>
+              </div>
+              <div class="p-space-xs rounded-DEFAULT bg-surface-container/70 flex flex-col gap-1">
+                <div class="flex items-center justify-between text-on-surface-variant font-label-md text-label-md">
+                  <span class="truncate flex items-center gap-1 text-on-surface"><span class="material-symbols-outlined text-[14px] text-primary">developer_board</span>RAM</span>
+                  <span id="ram-detail" class="text-primary font-bold">--</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden mr-2"><div id="telemetry-ram-bar" class="bg-primary h-full rounded-full shadow-[0_0_8px_rgb(var(--c-primary)/0.6)]" style="width:0%"></div></div>
+                  <span id="telemetry-ram-val" class="font-label-md text-label-md text-primary font-semibold shrink-0">0%</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between mt-3 pt-2 text-on-surface-variant font-label-md text-label-md border-t border-outline-variant/15">
+              <div class="flex items-center gap-1.5 text-on-surface"><span class="material-symbols-outlined text-[16px] text-primary">sports_esports</span><span id="dock-gamepad-label">Nessun controller</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+
+
+      <!-- ==================== NEGOZIO: COMPARATORE PREZZI ==================== -->
+      <section id="store-page" class="hidden w-full px-space-xl lg:px-margin-tv max-w-[1720px] mx-auto pt-6 pb-8 flex flex-col gap-space-xl min-h-[calc(100vh-5rem)]">
+
+        <!-- Ricerca -->
+        <div class="w-full max-w-xl mx-auto flex items-center gap-space-sm mt-2">
+          <div class="relative flex-1">
+            <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[22px] text-primary z-10 pointer-events-none">search</span>
+            <input id="store-q" type="text" autocomplete="off" spellcheck="false" placeholder="Cerca giochi su Steam, Epic Games e Xbox…"
+                   class="w-full bg-surface-container-low rounded-DEFAULT pl-12 pr-14 py-space-sm h-11 text-on-surface font-body-md text-body-md outline-none" data-i18n-ph="store.search">
+            <span id="kb-search" class="kb-y absolute right-3 top-1/2 -translate-y-1/2 px-space-xs py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-md text-label-md pointer-events-none z-10">Y</span>
+          </div>
+          <button id="store-refresh" data-f class="fbtn w-11 h-11 rounded-DEFAULT bg-surface-container-low text-on-surface-variant flex items-center justify-center cursor-pointer" title="Aggiorna" data-i18n-title="store.refresh">
+            <span class="material-symbols-outlined text-[22px]">refresh</span>
+          </button>
+        </div>
+
+        <div class="flex items-center justify-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
+          <span id="store-fav-hint-key" class="px-space-xs py-0.5 rounded bg-surface-container-high text-primary font-bold">L3</span>
+          <span id="store-fav-hint">Premi L3 per aggiungere ai preferiti</span>
+        </div>
+
+        <!-- In evidenza + confronto -->
+        <div id="store-hero" class="hidden relative w-full rounded-lg overflow-hidden bg-surface-container-low shadow-xl">
+          <div id="sh-bg" class="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity scale-105 transition-opacity duration-700"></div>
+          <div class="absolute inset-0 bg-gradient-to-r from-surface-container-lowest via-surface-container-lowest/90 to-transparent"></div>
+          <div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-transparent to-transparent"></div>
+          <div class="relative z-10 p-space-xl lg:p-margin-tv grid grid-cols-1 lg:grid-cols-12 gap-gutter items-center">
+            <div class="lg:col-span-7 flex flex-col items-start gap-space-md min-w-0">
+              <div id="sh-tags" class="flex items-center gap-space-sm flex-wrap"></div>
+              <div class="flex flex-col gap-space-xs max-w-full">
+                <h1 id="sh-title" class="font-display-hero text-display-hero text-primary tracking-tight uppercase font-extrabold truncate max-w-full"></h1>
+                <p id="sh-sub" class="font-headline-md text-headline-md text-on-surface-variant font-semibold"></p>
+              </div>
+              <p id="sh-note" class="font-body-md text-body-md text-on-surface-variant/90 max-w-xl leading-relaxed"></p>
+              <div class="pt-space-sm flex flex-wrap items-center gap-space-md">
+                <button id="sh-open" data-f class="fbtn px-space-xl py-space-md rounded-full bg-primary-container text-on-primary-container font-headline-sm text-headline-sm font-bold flex items-center gap-space-sm cursor-pointer">
+                  <span class="w-6 h-6 rounded-full bg-on-primary-container text-primary-container flex items-center justify-center font-label-md text-label-md font-bold kb-a">A</span>
+                  <span id="sh-open-label">Apri nello store</span>
+                </button>
+                <button id="sh-refresh" data-f class="fbtn px-space-lg py-space-md rounded-full bg-surface-container-high text-primary font-headline-sm text-headline-sm font-semibold flex items-center gap-space-sm cursor-pointer">
+                  <span class="w-6 h-6 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center font-label-md text-label-md font-bold kb-x">X</span>
+                  <span id="lbl-sh-refresh" data-i18n="store.refresh_prices">Aggiorna prezzi</span>
+                </button>
+              </div>
+            </div>
+            <div class="lg:col-span-5 bg-surface-container-low/90 backdrop-blur-md p-space-lg rounded-lg shadow-2xl flex flex-col gap-space-sm">
+              <div class="flex items-center justify-between pb-space-xs">
+                <div class="flex items-center gap-space-xs">
+                  <span class="material-symbols-outlined text-primary text-[20px]">currency_exchange</span>
+                  <span id="lbl-compare" class="font-headline-sm text-headline-sm text-primary font-bold" data-i18n="store.compare">Confronto negozi</span>
+                </div>
+                <span id="lbl-realtime" class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider" data-i18n="store.realtime">Prezzi in tempo reale</span>
+              </div>
+              <div id="sh-rows" class="flex flex-col gap-space-sm"></div>
+              <div class="pt-space-xs flex items-center justify-between font-label-md text-label-md text-on-surface-variant">
+                <span id="sh-updated" class="flex items-center gap-1"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Offerte -->
+        <div class="w-full">
+          <div class="flex items-center justify-between mb-space-lg">
+            <div class="flex items-center gap-space-sm">
+              <h2 id="store-title" class="font-headline-md text-headline-md text-primary font-bold uppercase tracking-wider">Ultime uscite</h2>
+              <span id="store-count" class="bg-surface-container-high px-space-xs py-0.5 rounded text-primary font-label-md text-label-md font-bold"></span>
+            </div>
+            <span id="store-note" class="font-label-md text-label-md text-on-surface-variant text-right"></span>
+          </div>
+          <div id="store-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-space-md"></div>
+          <div id="store-empty" class="hidden py-10 px-6 text-center bg-surface-container-low/60 rounded-lg">
+            <span class="material-symbols-outlined text-4xl text-primary">search_off</span>
+            <h3 id="lbl-noresult" class="font-headline-sm text-headline-sm text-on-surface mt-2 font-bold" data-i18n="store.empty_title">Nessun risultato</h3>
+            <p id="store-empty-text" class="font-body-sm text-body-sm text-on-surface-variant mt-1"></p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ==================== CONSOLE CONTROLLER FOOTER HUD ==================== -->
+
+
+  <!-- ==================== MODAL: CUSTOMIZE COVER ART ==================== -->
+  <div id="m-cover" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Personalizza Copertina">
+    <div class="modal-card cover-modal-card bg-surface-container-low/95 backdrop-blur-2xl p-6 lg:p-8 rounded-3xl shadow-[0_24px_80px_rgba(0,0,0,0.85)]" id="cover-card">
+      
+      <!-- Preview Column (Left) -->
+      <div class="cover-preview-col flex flex-col items-center gap-3">
+        <div class="cover-preview-box w-full aspect-[3/4] rounded-2xl relative overflow-hidden bg-surface-container shadow-2xl" id="cp-box">
+          <div class="art absolute inset-0" id="cp-art"></div>
+          <span class="badge absolute top-3 left-3 bg-surface-container-lowest/80 text-primary px-3 py-1 rounded-full font-label-md text-[11px] font-bold" id="cp-badge">STEAM</span>
+          <div class="clabel absolute bottom-3 left-3 right-3 p-2 rounded-xl bg-surface-container-lowest/90 font-bold text-xs truncate" id="cp-label" data-i18n="cover.game">Nome Gioco</div>
+        </div>
+        <p class="font-label-md text-xs text-on-surface-variant text-center" data-i18n="cover.format">Formato console 3:4</p>
+      </div>
+      
+      <!-- Options Column (Right) -->
+      <div class="cover-options-col flex-1 flex flex-col gap-4 min-w-0">
+        <div>
+          <span class="font-label-md text-xs text-primary-fixed uppercase tracking-wider font-bold" id="cp-status" data-i18n="cover.current">COPERTINA ATTUALE</span>
+          <div id="cp-title-box" class="marquee-box w-full overflow-hidden mt-1">
+            <h2 id="cp-title" class="marquee-content font-headline-md text-xl lg:text-2xl font-bold text-on-surface" data-i18n="cover.title">Personalizza Copertina</h2>
+          </div>
+          <p class="font-body-sm text-on-surface-variant mt-1" data-i18n="cover.help">Scegli tra le grafiche suggerite, inserisci un link web o carica un file dal PC.</p>
+        </div>
+
+        <!-- Quick Actions Row -->
+        <div class="flex items-center gap-3 flex-wrap">
+          <button id="cp-browse-btn" class="flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-container text-on-primary-container font-label-md font-bold shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer">
+            <span class="material-symbols-outlined text-[18px]">folder_open</span>
+            <span data-i18n="cover.browse">Sfoglia File dal PC</span>
+            <span class="w-5 h-5 rounded-full bg-on-primary-container text-primary-container flex items-center justify-center text-[10px] ml-1">A</span>
+          </button>
+
+          <button id="cp-reset-btn" class="flex items-center gap-2 px-5 py-2.5 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md font-bold transition-all cursor-pointer">
+            <span class="material-symbols-outlined text-[18px]">refresh</span>
+            <span data-i18n="cover.reset">Ripristina Predefinita</span>
+            <span class="w-5 h-5 rounded-full bg-secondary text-on-secondary flex items-center justify-center text-[10px] ml-1">Y</span>
+          </button>
+        </div>
+
+        <!-- Suggestions Grid -->
+        <div class="flex flex-col gap-2">
+          <span class="font-label-md text-xs text-primary-fixed font-bold uppercase tracking-wider" data-i18n="cover.suggested">Copertine Suggerite & Ufficiali</span>
+          <div id="cp-suggestions" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto p-1" role="listbox">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- URL Input Field -->
+        <div class="flex flex-col gap-1.5">
+          <span class="font-label-md text-xs text-on-surface-variant font-bold uppercase tracking-wider" data-i18n="cover.url">Oppure incolla un URL immagine web</span>
+          <div class="flex items-center gap-2">
+            <input id="cp-url-in" type="text" placeholder="https://example.com/cover.jpg" class="flex-1 h-11 px-4 rounded-xl bg-surface-container font-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-container" autocomplete="off" spellcheck="false" />
+            <button id="cp-apply-url-btn" class="h-11 px-5 rounded-xl bg-primary-container text-on-primary-container font-label-md font-bold hover:scale-105 transition-all cursor-pointer" data-i18n="cover.apply">
+              Applica
+            </button>
+          </div>
+        </div>
+
+        <!-- Close Button -->
+        <div class="flex justify-end pt-2">
+          <button id="cp-close-btn" class="flex items-center gap-2 px-6 py-2.5 rounded-full bg-surface-container-high text-on-surface-variant hover:text-on-surface font-label-md font-bold transition-all cursor-pointer">
+            <span class="material-symbols-outlined text-[18px]">close</span>
+            <span data-i18n="cover.close">Chiudi [B]</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: GAME DETAILS ==================== -->
+  <div id="m-details" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Dettagli del gioco">
+    <div class="modal-card bg-surface-container-low/95 backdrop-blur-2xl p-6 lg:p-8 rounded-3xl shadow-[0_24px_80px_rgba(0,0,0,0.85)] max-w-2xl w-full" id="details-card">
+      <div class="flex flex-col gap-4 w-full">
+        <div class="flex items-center justify-between">
+          <span id="md-src" class="px-3 py-1 rounded-full bg-primary-container text-on-primary-container font-label-md font-bold">STEAM</span>
+          <button id="md-close-top" class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface cursor-pointer">
+            <span class="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+
+        <div id="md-title-box" class="marquee-box w-full overflow-hidden">
+          <h2 id="md-title" class="marquee-content font-headline-lg text-2xl font-bold text-on-surface" data-i18n="det.game">Titolo Gioco</h2>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-surface-container/60">
+          <div class="flex flex-col">
+            <span class="font-label-md text-xs text-on-surface-variant" data-i18n="det.id">ID Piattaforma</span>
+            <strong id="md-id" class="font-label-lg text-on-surface font-bold">-</strong>
+          </div>
+          <div class="flex flex-col">
+            <span class="font-label-md text-xs text-on-surface-variant" data-i18n="det.size">Dimensione su Disco</span>
+            <strong id="md-size" class="font-label-lg text-on-surface font-bold">-</strong>
+          </div>
+          <div class="flex flex-col">
+            <span class="font-label-md text-xs text-on-surface-variant" data-i18n="det.last">Ultimo Avvio</span>
+            <strong id="md-last" class="font-label-lg text-on-surface font-bold">-</strong>
+          </div>
+          <div class="flex flex-col">
+            <span class="font-label-md text-xs text-on-surface-variant" data-i18n="det.total">Tempo Totale</span>
+            <strong id="md-hours" class="font-label-lg text-primary font-bold">-</strong>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1 p-3 rounded-xl bg-surface-container/60">
+          <span class="font-label-md text-[11px] text-on-surface-variant uppercase font-bold" data-i18n="det.path">Percorso Eseguibile</span>
+          <code id="md-path" class="font-label-md text-xs text-primary truncate select-all">-</code>
+        </div>
+
+        <div class="flex items-center gap-3 mt-2 flex-wrap">
+          <button id="md-play" class="flex-1 py-3 rounded-full bg-primary-container text-on-primary-container font-headline-sm font-bold shadow-md cursor-pointer" data-i18n="det.play">
+            Avvia Gioco [A]
+          </button>
+          <button id="md-cover-btn" class="px-5 py-3 rounded-full bg-surface-container-high text-on-surface font-label-md font-bold cursor-pointer" data-i18n="det.cover">
+            Cambia Copertina [X]
+          </button>
+          <button id="md-remove" class="hidden px-5 py-3 rounded-full bg-error/20 text-error font-label-md font-bold cursor-pointer" data-i18n="det.remove">
+            Rimuovi dalla libreria
+          </button>
+          <button id="md-close" class="px-5 py-3 rounded-full bg-surface-container-high text-on-surface-variant font-label-md font-bold cursor-pointer" data-i18n="cover.close">
+            Chiudi [B]
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== IMPOSTAZIONI ===================== -->
+  <div id="m-settings" class="modal-overlay" role="dialog" aria-modal="true" data-i18n-aria="set.title">
+    <div class="modal-card bg-surface-container-low/95 backdrop-blur-2xl rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.85)] w-full max-w-5xl mx-4 flex overflow-hidden" style="height:min(80vh,760px)">
+      <aside class="w-64 shrink-0 bg-surface-container-lowest/60 p-space-md flex flex-col">
+        <div class="flex items-center gap-space-sm px-space-sm pt-space-xs pb-space-md">
+          <span class="material-symbols-outlined text-primary text-[26px]">tune</span>
+          <h2 data-i18n="set.title" class="font-headline-md text-headline-md text-on-surface font-bold">Impostazioni</h2>
+        </div>
+        <nav id="set-cats" class="flex flex-col gap-space-xs"></nav>
+        <button id="st-close-top" class="mt-auto flex items-center gap-space-sm px-space-md py-space-sm rounded-full bg-surface-container-high/70 text-on-surface-variant cursor-pointer">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+          <span data-i18n="set.close" class="font-label-lg text-label-lg font-bold">Chiudi</span>
+        </button>
+      </aside>
+      <section id="set-panel" class="flex-1 min-w-0 overflow-y-auto p-space-lg">
+        <h3 id="set-panel-title" class="font-headline-md text-headline-md text-primary font-bold mb-space-md"></h3>
+        <div id="set-rows" class="flex flex-col gap-space-sm"></div>
+      </section>
+    </div>
+  </div>
+
+
+  <!-- ==================== MODAL: LAUNCHING OVERLAY ==================== -->
+  <div id="launch" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Avvio del gioco">
+    <div class="flex flex-col items-center gap-4 text-center max-w-md w-full p-8 rounded-3xl bg-surface-container-low/95 backdrop-blur-2xl shadow-2xl">
+      <div id="lcover" class="w-36 aspect-[3/4] rounded-2xl overflow-hidden shadow-[0_0_40px_rgb(var(--c-primary-container)/0.4)] bg-surface-container-highest"></div>
+      <h2 id="ltitle" class="font-headline-lg text-2xl font-extrabold text-on-surface uppercase" data-i18n="launch.starting_title">Avvio Gioco…</h2>
+      <div class="w-full h-2 rounded-full bg-surface-container-highest overflow-hidden">
+        <div id="lbar" class="h-full bg-primary-container rounded-full transition-all duration-500 shadow-[0_0_12px_rgb(var(--c-primary-container)/0.8)]" style="width: 0%"></div>
+      </div>
+      <p id="lstatus" class="font-body-md text-on-surface-variant" data-i18n="launch.check">Controllo libreria…</p>
+      <div class="flex items-center gap-3 mt-2">
+        <button id="ldone" class="hidden px-8 py-2.5 rounded-full bg-primary-container text-on-primary-container font-headline-sm font-bold cursor-pointer" data-i18n="launch.back">
+          Torna al Launcher [A]
+        </button>
+        <button id="lcancel" class="px-6 py-2.5 rounded-full bg-surface-container-high text-on-surface font-label-md font-bold cursor-pointer" data-i18n="launch.cancel">
+          Annulla [B]
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed left-1/2 bottom-20 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-4 transition-all duration-300 px-6 py-3 rounded-full bg-surface-container-high text-on-surface shadow-2xl flex items-center gap-2.5 font-label-md font-bold border border-outline-variant/30"></div>
+
+</div>
+
+<!-- Scripts -->
+<script src="/static/icons.js"></script>
+<script src="/static/sfx.js"></script>
+<script src="/static/gamepad.js"></script>
+<script src="/static/i18n.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
