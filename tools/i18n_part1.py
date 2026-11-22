@@ -9,6 +9,7 @@ k("tab.fav",     "Preferiti", "Favorites", "Favoritos", "Favoris", "Favoriten", 
 k("tab.apps",    "App", "Apps", "Apps", "Applis", "Apps", "Apps", "Приложения", "应用", "アプリ", "앱", "Uygulamalar", "Aplikacje")
 k("tab.recent",  "Recenti", "Recent", "Recientes", "Récents", "Zuletzt", "Recentes", "Недавние", "最近", "最近", "최근", "Son kullanılanlar", "Ostatnie")
 k("tab.store",   "Negozio", "Store", "Tienda", "Boutique", "Shop", "Loja", "Магазин", "商店", "ストア", "스토어", "Mağaza", "Sklep")
+k("tab.emu",     "EMU", "EMU", "EMU", "EMU", "EMU", "EMU", "EMU", "EMU", "EMU", "EMU", "EMU", "EMU")
 # ---- tooltip header
 k("tip.net",        "Rete", "Network", "Red", "Réseau", "Netzwerk", "Rede", "Сеть", "网络", "ネットワーク", "네트워크", "Ağ", "Sieć")
 k("tip.pad",        "Controller", "Controller", "Mando", "Manette", "Controller", "Controle", "Геймпад", "手柄", "コントローラー", "컨트롤러", "Kumanda", "Kontroler")

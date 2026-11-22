@@ -97,12 +97,13 @@ def make_opts(settings=None):
         "lang": lang, "country": country, "cc": country.lower(),
         "locale": LOCALES.get(lang, "it-IT"), "steam_lang": STEAM_LANG.get(lang, "english"),
         "itad_key": (s.get("itad_key") or "").strip(),
+        "store_favorites": tuple(str(k).strip().lower() for k in (s.get("store_favorites") or []) if str(k).strip()),
         "enabled": {k: enabled.get(k, True) is not False for k in STORES},
     }
 
 
 def _okey(o):
-    return (o["country"], o["lang"], bool(o["itad_key"]), tuple(sorted(k for k, v in o["enabled"].items() if v)))
+    return (o["country"], o["lang"], bool(o["itad_key"]), tuple(sorted(k for k, v in o["enabled"].items() if v)), o.get("store_favorites", ()))
 
 
 # ---------------------------------------------------------------- HTTP con errori leggibili
@@ -604,6 +605,30 @@ def home(o):
             results["epic"] = free          # se il catalogo Epic e' bloccato, almeno i giochi gratis
             errors.pop("epic", None) if len(results["epic"]) else None
         tiles = merge(results, 100)
+        # A favorite added from search is not guaranteed to be in the latest
+        # releases returned by the providers. Resolve it explicitly and put
+        # every resolved favorite before the ordinary home catalog.
+        favorite_tiles = []
+        by_title = {norm(t["title"]): t for t in tiles}
+        favorite_names = set()
+        for favorite in o.get("store_favorites", ()):
+            tile = by_title.get(favorite)
+            if tile is not None:
+                favorite_tiles.append(tile)
+                favorite_names.add(norm(tile["title"]))
+                continue
+            try:
+                found = search(favorite, o).get("tiles") or []
+            except Exception as exc:
+                errors["favorites"] = str(exc)[:140]
+                continue
+            tile = next((t for t in found if norm(t.get("title")) == favorite), None)
+            if tile is None and found:
+                tile = found[0]
+            if tile and norm(tile.get("title")) not in favorite_names:
+                favorite_tiles.append(tile)
+                favorite_names.add(norm(tile["title"]))
+        tiles = favorite_tiles + [t for t in tiles if norm(t["title"]) not in favorite_names]
         # Il catalogo può contenere 100 suggerimenti: il confronto incrociato
         # approfondito resta sui primi 40 per evitare una raffica di richieste.
         _fill_missing(tiles[:40], o, errors)

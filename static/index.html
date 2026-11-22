@@ -409,12 +409,33 @@
       
       <!-- Preview Column (Left) -->
       <div class="cover-preview-col flex flex-col items-center gap-3">
-        <div class="cover-preview-box w-full aspect-[3/4] rounded-2xl relative overflow-hidden bg-surface-container shadow-2xl" id="cp-box">
+        <div class="cover-preview-box w-full aspect-square rounded-2xl relative overflow-hidden bg-surface-container shadow-2xl" id="cp-box">
           <div class="art absolute inset-0" id="cp-art"></div>
           <span class="badge absolute top-3 left-3 bg-surface-container-lowest/80 text-primary px-3 py-1 rounded-full font-label-md text-[11px] font-bold" id="cp-badge">STEAM</span>
           <div class="clabel absolute bottom-3 left-3 right-3 p-2 rounded-xl bg-surface-container-lowest/90 font-bold text-xs truncate" id="cp-label" data-i18n="cover.game">Nome Gioco</div>
         </div>
-        <p class="font-label-md text-xs text-on-surface-variant text-center" data-i18n="cover.format">Formato console 3:4</p>
+        <p class="font-label-md text-xs text-on-surface-variant text-center" id="cp-format">Copertina selezionata</p>
+        <div id="cp-tile-preview-wrap" class="cover-tile-preview w-full flex flex-col gap-2 p-3 rounded-2xl bg-surface-container-high/70">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-label-md text-[11px] text-primary uppercase font-bold">Anteprima nel tile</span>
+            <span class="font-label-md text-[10px] text-on-surface-variant uppercase">ritaglio reale</span>
+          </div>
+          <div id="cp-tile-preview" class="cover-tile-preview-box relative overflow-hidden rounded-xl bg-surface-container-lowest">
+            <div class="art absolute inset-0" id="cp-tile-art"></div>
+          </div>
+        </div>
+        <div id="cp-position-controls" class="w-full flex flex-col gap-2 p-3 rounded-2xl bg-surface-container-high/70">
+          <div class="flex items-center justify-between gap-2">
+            <label for="cp-position-x" class="font-label-md text-[11px] text-on-surface-variant uppercase">Orizzontale</label>
+            <output id="cp-position-x-value" class="font-label-md text-[11px] text-primary">50%</output>
+          </div>
+          <input id="cp-position-x" type="range" min="0" max="100" value="50" step="1" class="cover-position-range" aria-label="Posizione orizzontale copertina">
+          <div class="flex items-center justify-between gap-2">
+            <label for="cp-position-y" class="font-label-md text-[11px] text-on-surface-variant uppercase">Verticale</label>
+            <output id="cp-position-y-value" class="font-label-md text-[11px] text-primary">25%</output>
+          </div>
+          <input id="cp-position-y" type="range" min="0" max="100" value="25" step="1" class="cover-position-range" aria-label="Posizione verticale copertina">
+        </div>
       </div>
       
       <!-- Options Column (Right) -->
@@ -425,6 +446,10 @@
             <h2 id="cp-title" class="marquee-content font-headline-md text-xl lg:text-2xl font-bold text-on-surface" data-i18n="cover.title">Personalizza Copertina</h2>
           </div>
           <p class="font-body-sm text-on-surface-variant mt-1" data-i18n="cover.help">Scegli tra le grafiche suggerite, inserisci un link web o carica un file dal PC.</p>
+          <div class="flex items-center gap-2 p-1 rounded-xl bg-surface-container-high/70" role="tablist" aria-label="Tipo immagine">
+            <button id="cp-mode-cover" type="button" class="cp-mode-btn active flex-1 px-3 py-2 rounded-lg font-label-md font-bold cursor-pointer">Copertine</button>
+            <button id="cp-mode-background" type="button" class="cp-mode-btn flex-1 px-3 py-2 rounded-lg font-label-md font-bold cursor-pointer">Sfondi</button>
+          </div>
         </div>
 
         <!-- Quick Actions Row -->
@@ -444,7 +469,7 @@
 
         <!-- Suggestions Grid -->
         <div class="flex flex-col gap-2">
-          <span class="font-label-md text-xs text-primary-fixed font-bold uppercase tracking-wider" data-i18n="cover.suggested">Copertine Suggerite & Ufficiali</span>
+          <span class="font-label-md text-xs text-primary-fixed font-bold uppercase tracking-wider" id="cp-suggested-label" data-i18n="cover.suggested">Copertine Suggerite & Ufficiali</span>
           <div id="cp-suggestions" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto p-1" role="listbox">
             <!-- Populated dynamically via JS -->
           </div>
@@ -554,8 +579,10 @@
 
   <!-- ==================== MODAL: LAUNCHING OVERLAY ==================== -->
   <div id="launch" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Avvio del gioco">
-    <div class="flex flex-col items-center gap-4 text-center max-w-md w-full p-8 rounded-3xl bg-surface-container-low/95 backdrop-blur-2xl shadow-2xl">
-      <div id="lcover" class="w-36 aspect-[3/4] rounded-2xl overflow-hidden shadow-[0_0_40px_rgb(var(--c-primary-container)/0.4)] bg-surface-container-highest"></div>
+    <div id="launch-bg" aria-hidden="true"></div>
+    <div id="launch-vignette" aria-hidden="true"></div>
+    <div class="launch-card flex flex-col items-center gap-4 text-center max-w-md w-full p-8 rounded-3xl bg-surface-container-low/80 backdrop-blur-2xl shadow-2xl">
+      <div id="lcover" class="hidden"></div>
       <h2 id="ltitle" class="font-headline-lg text-2xl font-extrabold text-on-surface uppercase" data-i18n="launch.starting_title">Avvio Gioco…</h2>
       <div class="w-full h-2 rounded-full bg-surface-container-highest overflow-hidden">
         <div id="lbar" class="h-full bg-primary-container rounded-full transition-all duration-500 shadow-[0_0_12px_rgb(var(--c-primary-container)/0.8)]" style="width: 0%"></div>
@@ -573,7 +600,7 @@
   </div>
 
   <!-- Toast Notification -->
-  <div id="toast" class="fixed left-1/2 bottom-20 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-4 transition-all duration-300 px-6 py-3 rounded-full bg-surface-container-high text-on-surface shadow-2xl flex items-center gap-2.5 font-label-md font-bold border border-outline-variant/30"></div>
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true" class="fixed left-1/2 bottom-20 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-4 transition-all duration-300 px-6 py-3 rounded-full bg-surface-container-high text-on-surface shadow-2xl flex items-center gap-2.5 font-label-md font-bold border border-outline-variant/30"></div>
 
 </div>
 

@@ -1,195 +1,85 @@
-// Web Audio API Synthesizer for Console Feedback (Nintendo Switch / Xbox style)
-
+// Local UI sound effects and home ambience.
+// Audio files are bundled with FEYORA so the launcher remains fully offline.
 class SoundFX {
   constructor() {
-    this.ctx = null;
     this.enabled = true;
+    this.foreground = true;
     this.volume = 0.7;
-    this._master = null;
+    this.idleFactor = 1;
+    this.currentScene = 'silent';
+    this.music = new Audio('/static/music/home-ambience.mp3');
+    this.music.loop = true;
+    this.music.preload = 'auto';
+    this.musicTarget = 0;
+    this.musicFade = null;
+    this._unlocked = false;
+    this._unlock = () => this.unlockMusic();
+    document.addEventListener('pointerdown', this._unlock, { passive: true });
+    document.addEventListener('keydown', this._unlock, { passive: true });
   }
 
-  // uscita comune con il volume degli effetti (Impostazioni -> Controller e audio)
-  out() {
-    if (!this._master || this._master.context !== this.ctx) {
-      this._master = this.ctx.createGain();
-      this._master.connect(this.ctx.destination);
-    }
-    this._master.gain.value = Math.max(0, Math.min(1, this.volume));
-    return this._master;
+  _url(cue) { return `/static/sounds/zen/${cue}.mp3`; }
+
+  _play(cue, gain = 1) {
+    if (!this.enabled || !this.foreground) return;
+    try {
+      const audio = new Audio(this._url(cue));
+      audio.volume = Math.max(0, Math.min(1, this.volume * gain));
+      audio.play().catch(() => {});
+    } catch (e) { /* audio is optional */ }
   }
 
-  init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
+  playMove() { this._play('focus', 0.45); }
+  playSelect() { this._play('select', 0.75); }
+  playBack() { this._play('back', 0.7); }
+  playTab() { this._play('swipe', 0.55); }
+  playFavorite() { this._play('achievement', 0.8); }
+  playLaunch() { this._play('start', 0.8); }
+
+  unlockMusic() {
+    this._unlocked = true;
+    if (this.musicTarget > 0) this._setMusicPlaying(true);
+  }
+
+  _setMusicPlaying(playing) {
+    if (!playing) { this.music.pause(); return; }
+    this.music.play().catch(() => {});
+  }
+
+  _fadeMusic(target) {
+    target = Math.max(0, Math.min(1, target));
+    this.musicTarget = target;
+    clearInterval(this.musicFade);
+    if (target > 0 && this._unlocked) this._setMusicPlaying(true);
+    const start = this.music.volume;
+    const started = performance.now();
+    this.musicFade = setInterval(() => {
+      const p = Math.min(1, (performance.now() - started) / 420);
+      this.music.volume = start + (target - start) * p;
+      if (p >= 1) {
+        clearInterval(this.musicFade);
+        this.musicFade = null;
+        if (target === 0) this.music.pause();
       }
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
+    }, 30);
   }
 
-  // Smooth short blip for navigating list / cards
-  playMove() {
-    if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      
-      const now = this.ctx.currentTime;
-      osc.frequency.setValueAtTime(420, now);
-      osc.frequency.exponentialRampToValueAtTime(580, now + 0.04);
-      
-      gain.gain.setValueAtTime(0.09, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-      
-      osc.connect(gain);
-      gain.connect(this.out());
-      
-      osc.start(now);
-      osc.stop(now + 0.05);
-    } catch(e) {}
+  // home: normal ambience, settings: very quiet, every other view: silent.
+  setMusicScene(scene) {
+    this.currentScene = scene;
+    if (!this.enabled || !this.foreground) { this._fadeMusic(0); return; }
+    const sceneGain = scene === 'home' ? 0.22 : (scene === 'settings' ? 0.035 : 0);
+    this._fadeMusic(this.volume * sceneGain * this.idleFactor);
   }
 
-  // Positive chime for confirming / selecting / opening
-  playSelect() {
-    if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const osc1 = this.ctx.createOscillator();
-      const osc2 = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc1.type = 'triangle';
-      osc2.type = 'sine';
-      
-      osc1.frequency.setValueAtTime(523.25, now); // C5
-      osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.08); // E5
-      
-      osc2.frequency.setValueAtTime(1046.5, now); // C6
-      osc2.frequency.exponentialRampToValueAtTime(1318.5, now + 0.08); // E6
-
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-
-      osc1.connect(gain);
-      osc2.connect(gain);
-      gain.connect(this.out());
-
-      osc1.start(now);
-      osc2.start(now);
-      osc1.stop(now + 0.13);
-      osc2.stop(now + 0.13);
-    } catch(e) {}
+  setForeground(active) {
+    this.foreground = !!active;
+    this.setMusicScene(this.currentScene);
   }
 
-  // Descending chime for cancel / back
-  playBack() {
-    if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(493.88, now); // B4
-      osc.frequency.exponentialRampToValueAtTime(329.63, now + 0.09); // E4
-
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-
-      osc.connect(gain);
-      gain.connect(this.out());
-
-      osc.start(now);
-      osc.stop(now + 0.1);
-    } catch(e) {}
-  }
-
-  // Tab switch woosh/click
-  playTab() {
-    if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(620, now);
-      osc.frequency.exponentialRampToValueAtTime(740, now + 0.06);
-
-      gain.gain.setValueAtTime(0.08, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-
-      osc.connect(gain);
-      gain.connect(this.out());
-
-      osc.start(now);
-      osc.stop(now + 0.07);
-    } catch(e) {}
-  }
-
-  // Sparkling chord when favoriting
-  playFavorite() {
-    if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-
-    try {
-      const notes = [659.25, 830.61, 987.77, 1318.51]; // E major chord
-      notes.forEach((freq, idx) => {
-        const now = this.ctx.currentTime + idx * 0.03;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now);
-        gain.gain.setValueAtTime(0.07, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-        osc.connect(gain);
-        gain.connect(this.out());
-        osc.start(now);
-        osc.stop(now + 0.2);
-      });
-    } catch(e) {}
-  }
-
-  // Grand launch sound
-  playLaunch() {
-    if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(220, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.35);
-
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-
-      osc.connect(gain);
-      gain.connect(this.out());
-
-      osc.start(now);
-      osc.stop(now + 0.5);
-    } catch(e) {}
+  setIdle(idle) {
+    this.idleFactor = idle ? 0.35 : 1;
+    this.setMusicScene(this.currentScene);
   }
 }
 

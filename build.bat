@@ -3,26 +3,45 @@ setlocal
 cd /d "%~dp0"
 title FEYORA - build
 
-where python >nul 2>&1
-if errorlevel 1 (
-    echo [ERRORE] Python non trovato nel PATH.
+set "PYTHON_CMD="
+
+:: Prima usa l'ambiente virtuale del progetto: non richiede Python nel PATH.
+if exist "%~dp0.venv\Scripts\python.exe" set "PYTHON_CMD="%~dp0.venv\Scripts\python.exe""
+
+:: Fallback per installazioni globali tramite Python Launcher o PATH.
+if not defined PYTHON_CMD (
+    where py >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=py -3"
+)
+if not defined PYTHON_CMD (
+    where python >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=python"
+)
+if not defined PYTHON_CMD (
+    echo [ERRORE] Python non trovato.
+    echo Cerca un ambiente .venv oppure installa Python con il launcher "py".
     goto :fail
 )
 
+echo Python selezionato: %PYTHON_CMD%
+%PYTHON_CMD% --version
+
 echo.
 echo === [1/3] Installo le dipendenze ===
-python -m pip install -r requirements.txt pyinstaller
+%PYTHON_CMD% -m pip install -r requirements.txt pyinstaller
 if errorlevel 1 goto :fail
 
 echo.
 echo === [2/3] Creo l'exe con PyInstaller ===
-python -m PyInstaller --noconfirm --clean feyora.spec
+%PYTHON_CMD% -m PyInstaller --noconfirm --clean feyora.spec
 if errorlevel 1 goto :fail
 if not exist "dist\FEYORA\FEYORA.exe" goto :fail
 
 echo.
 echo === [3/3] Installer (Inno Setup) ===
 set "ISCC="
+if exist "%ProgramFiles%\Inno Setup 7\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 7\ISCC.exe"
+if exist "%ProgramFiles(x86)%\Inno Setup 7\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 7\ISCC.exe"
 if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"

@@ -7,6 +7,8 @@ k("set.title",      "Impostazioni", "Settings", "Ajustes", "Paramètres", "Einst
 k("set.cat.general","Generale", "General", "General", "Général", "Allgemein", "Geral", "Основные", "常规", "一般", "일반", "Genel", "Ogólne")
 k("set.cat.look",   "Aspetto", "Appearance", "Apariencia", "Apparence", "Darstellung", "Aparência", "Оформление", "外观", "外観", "화면", "Görünüm", "Wygląd")
 k("set.cat.library","Libreria", "Library", "Biblioteca", "Bibliothèque", "Bibliothek", "Biblioteca", "Библиотека", "游戏库", "ライブラリ", "라이브러리", "Kitaplık", "Biblioteka")
+k("set.emu",        "Sezione EMU", "EMU section", "Sección EMU", "Section EMU", "EMU-Bereich", "Seção EMU", "Раздел EMU", "EMU 区域", "EMU セクション", "EMU 섹션", "EMU bölümü", "Sekcja EMU")
+k("set.emu_d",      "Mostra o nascondi la sezione dei giochi emulati", "Show or hide the emulated games section", "Muestra u oculta la sección de juegos emulados", "Afficher ou masquer la section des jeux émulés", "EMU-Spielebereich ein- oder ausblenden", "Mostrar ou ocultar a seção de jogos emulados", "Показывать или скрывать раздел эмулируемых игр", "显示或隐藏模拟游戏区域", "エミュレートされたゲームのセクションを表示または非表示", "에뮬레이션 게임 섹션 표시 또는 숨기기", "Emüle oyunlar bölümünü göster veya gizle", "Pokaż lub ukryj sekcję emulowanych gier")
 k("set.cat.input",  "Controller e audio", "Controller & audio", "Mando y audio", "Manette et audio", "Controller & Audio", "Controle e áudio", "Геймпад и звук", "手柄与音频", "コントローラーとオーディオ", "컨트롤러 및 오디오", "Kumanda ve ses", "Kontroler i dźwięk")
 k("set.cat.store",  "Negozio", "Store", "Tienda", "Boutique", "Shop", "Loja", "Магазин", "商店", "ストア", "스토어", "Mağaza", "Sklep")
 k("set.cat.system", "Sistema", "System", "Sistema", "Système", "System", "Sistema", "Система", "系统", "システム", "시스템", "Sistem", "System")

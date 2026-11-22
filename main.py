@@ -106,6 +106,12 @@ def start_server():
         log_config=None,
         log_level="warning",
         access_log=False,
+        # Usa il parser HTTP Python standard: evita moduli opzionali stale
+        # rimasti da installazioni precedenti dell'EXE.
+        http="h11",
+        # FEYORA usa solo HTTP locale; evita il caricamento del supporto
+        # WebSocket opzionale, non necessario e non incluso nell'EXE.
+        ws="none",
     )
     srv = uvicorn.Server(config)
 

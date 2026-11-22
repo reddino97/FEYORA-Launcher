@@ -8,6 +8,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</
 
 const CATS = [
   ['all', 'tab.games', 'sports_esports'],
+  ['emu', 'tab.emu', 'sports_esports'],
   ['fav', 'tab.fav', 'favorite'],
   ['custom', 'tab.apps', 'widgets'],
   ['recent', 'tab.recent', 'history'],
@@ -22,6 +23,8 @@ let focusEl = null;            // Element with current controller focus
 let prevFocus = null;          // Focus restoration element upon modal close
 let toastTimer = null;
 let launchTimers = [];
+let idleTimer = null;
+let idle = false;
 let totalHours = 0;
 let settings = { sfx: true, rumble: true, nick: 'Giocatore 1', platforms: { steam: true, epic: true }, theme: 'nexus', sgdb_enabled: false };
 
@@ -172,7 +175,7 @@ function showToast(msg, icon = 'info') {
 const artUrl = (g) => (g.is_custom_cover ? g.poster_url : (g.poster_url || g.banner_url));
 const procArt = (g) => generateProceduralArt(g.art_style || 'waves', g.palette);
 
-function setArt(el, g, url) {
+function setArt(el, g, url, position = null) {
   if (!el) return;
   if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
   let h = el.querySelector(':scope > .art-holder');
@@ -186,7 +189,8 @@ function setArt(el, g, url) {
   if (!url) { h.innerHTML = procArt(g); return; }
   const img = new Image();
   img.alt = '';
-  img.style.objectPosition = 'center 25%';
+  const pos = position || g.cover_position || { x: 50, y: 25 };
+  img.style.objectPosition = `${Number(pos.x ?? 50)}% ${Number(pos.y ?? 25)}%`;
   img.onerror = () => { h.innerHTML = procArt(g); };
   img.src = url;
   h.appendChild(img);
@@ -215,6 +219,7 @@ function getFilteredGames() {
   return sortGames(allGames.filter((g) => {
     if (g.source === 'Steam' && settings.platforms.steam === false) return false;
     if (g.source === 'Epic Games' && settings.platforms.epic === false) return false;
+    if (currentCat === 'emu') return g.category === 'emu' || g.source === 'Emulator';
     if (currentCat === 'fav') return g.is_fav;
     if (currentCat === 'custom') return g.source === 'Custom' || g.source === 'Launcher';
     if (currentCat === 'recent') return g.last_played > 0;
@@ -227,7 +232,7 @@ function renderCategories() {
   const nav = $('cats-nav');
   if (!nav) return;
   nav.innerHTML = '';
-  CATS.forEach(([id, label, icon]) => {
+  CATS.filter(([id]) => id !== 'emu' || settings.show_emu !== false).forEach(([id, label, icon]) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.cat = id;
@@ -242,15 +247,21 @@ function renderCategories() {
 }
 
 function setCategory(id) {
+  if (id === 'emu' && settings.show_emu === false) id = 'all';
   if (id === currentCat) return;
   const wasStore = currentCat === 'store';
   currentCat = id;
+  syncMusicScene();
   selectedIndex = 0;
   renderCategories();
   sfx('playTab');
   rumble('rumbleSoft');
   if (id === 'store') {
+    const search = $('store-q');
+    if (search) search.value = '';
+    storeState.tiles = [];
     showStorePage(true);
+    loadStore();
     setFocus(document.querySelector('#cats-nav .tab[data-cat="store"]'));   // "giù" per entrare nella pagina
     return;
   }
@@ -260,8 +271,9 @@ function setCategory(id) {
 }
 
 function cycleCategory(delta) {
-  const i = CATS.findIndex((c) => c[0] === currentCat);
-  setCategory(CATS[(i + delta + CATS.length) % CATS.length][0]);
+  const cats = CATS.filter(([id]) => id !== 'emu' || settings.show_emu !== false);
+  const i = cats.findIndex((c) => c[0] === currentCat);
+  setCategory(cats[(i + delta + cats.length) % cats.length][0]);
 }
 
 function renderCarousel() {
@@ -286,13 +298,8 @@ function renderCarousel() {
     c.setAttribute('role', 'option');
     c.dataset.index = idx;
     c.innerHTML = `
-      <div class="art">
+      <div class="art flex-1 min-h-[180px]">
         ${g.is_fav ? '<span class="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-surface-container-lowest/80 flex items-center justify-center text-error"><span class="material-symbols-outlined fill text-[16px]">favorite</span></span>' : ''}
-      </div>
-      <div class="p-space-md flex items-center justify-center flex-1 overflow-hidden">
-        <div class="card-title-box marquee-box w-full">
-          <h3 class="ttl marquee-content font-headline-sm text-headline-sm font-bold text-on-surface whitespace-nowrap">${esc(g.name)}</h3>
-        </div>
       </div>`;
     setArt(c.querySelector('.art'), g, artUrl(g));
 
@@ -436,10 +443,35 @@ const MODALS = {
   cover: 'm-cover', details: 'm-details', settings: 'm-settings', launch: 'launch'
 };
 
+function syncMusicScene() {
+  if (!window.SFX) return;
+  // Internal launcher views keep the ambience barely audible, while the
+  // launch overlay is silent so it cannot compete with the game startup.
+  const scene = modalOpen === 'launch'
+    ? 'silent'
+    : (modalOpen || currentCat === 'store' ? 'settings' : 'home');
+  SFX.setMusicScene(scene);
+}
+
+function markActivity() {
+  if (idle) {
+    idle = false;
+    document.documentElement.classList.remove('idle');
+    if (window.SFX) SFX.setIdle(false);
+  }
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    idle = true;
+    document.documentElement.classList.add('idle');
+    if (window.SFX) SFX.setIdle(true);
+  }, 45000);
+}
+
 function openModal(name) {
   if (name === 'settings') renderSettings();
   prevFocus = focusEl;
   modalOpen = name;
+  syncMusicScene();
   $(MODALS[name]).classList.add('on');
   const focusables = modalFocusables();
   setFocus(focusables[0] || null);
@@ -454,6 +486,7 @@ function closeModal() {
   }
   const closed = modalOpen;
   modalOpen = null;
+  syncMusicScene();
   sfx('playBack');
   rumble('rumbleSoft');
 
@@ -462,6 +495,14 @@ function closeModal() {
   } else {
     focusCard();
   }
+}
+
+function returnToHome() {
+  if (modalOpen) closeModal();
+  if (currentCat !== 'all') setCategory('all');
+  else focusCard();
+  if (window.SFX) SFX.setForeground(true);
+  syncMusicScene();
 }
 
 function modalFocusables() {
@@ -478,7 +519,9 @@ function modalFocusables() {
   }
   if (modalOpen === 'cover') {
     return [
+      $('cp-mode-cover'), $('cp-mode-background'),
       $('cp-browse-btn'), $('cp-reset-btn'),
+      $('cp-position-x'), $('cp-position-y'),
       ...document.querySelectorAll('#cp-suggestions .cover-opt'),
       $('cp-url-in'), $('cp-apply-url-btn'), $('cp-close-btn')
     ].filter((e) => e && e.offsetParent !== null);
@@ -507,16 +550,101 @@ function openDetails() {
   sfx('playSelect');
 }
 
-// ---- Cover Modal
+// ---- Artwork Modal (cover + background)
+let coverMode = 'cover';
+let coverPosition = { x: 50, y: 25 };
+let coverPositionTimer = null;
+
+function renderCoverPosition() {
+  const g = curGame();
+  if (!g) return;
+  g.cover_position = { x: Number(coverPosition.x), y: Number(coverPosition.y) };
+  const x = $('cp-position-x');
+  const y = $('cp-position-y');
+  const xv = $('cp-position-x-value');
+  const yv = $('cp-position-y-value');
+  if (x) x.value = coverPosition.x;
+  if (y) y.value = coverPosition.y;
+  if (xv) xv.textContent = `${Math.round(coverPosition.x)}%`;
+  if (yv) yv.textContent = `${Math.round(coverPosition.y)}%`;
+  setArt($('cp-art'), g, g.poster_url, coverPosition);
+  setArt($('cp-tile-art'), g, g.poster_url, coverPosition);
+}
+
+function scheduleCoverPositionSave() {
+  renderCoverPosition();
+  clearTimeout(coverPositionTimer);
+  coverPositionTimer = setTimeout(async () => {
+    const g = curGame();
+    if (!g) return;
+    try { await post('/api/game/cover/position', { id: g.id, x: coverPosition.x, y: coverPosition.y }); }
+    catch (e) { /* la posizione resta visibile nella sessione */ }
+    refreshKeepSelection();
+  }, 220);
+}
+
+function nudgeCoverPosition(axis, delta) {
+  if (coverMode !== 'cover') return;
+  const key = axis === 'y' ? 'y' : 'x';
+  coverPosition[key] = Math.max(0, Math.min(100, Number(coverPosition[key] || 0) + delta));
+  scheduleCoverPositionSave();
+  sfx('playMove');
+}
+
+function setCoverMode(mode, suggestions = null) {
+  coverMode = mode === 'background' ? 'background' : 'cover';
+  const bg = coverMode === 'background';
+  $('cp-mode-cover').classList.toggle('active', !bg);
+  $('cp-mode-background').classList.toggle('active', bg);
+  $('cp-box').classList.toggle('background-mode', bg);
+  $('cp-position-controls').classList.toggle('hidden', bg);
+  $('cp-tile-preview-wrap').classList.toggle('hidden', bg);
+  $('cp-format').textContent = bg ? 'Sfondo selezionato' : 'Copertina selezionata';
+  $('cp-suggested-label').textContent = bg ? 'Sfondi suggeriti e ufficiali' : 'Copertine suggerite e ufficiali';
+  const g = curGame();
+  if (g) {
+    setArt($('cp-art'), g, bg ? (g.banner_url || artUrl(g)) : g.poster_url, bg ? null : coverPosition);
+    if (bg) setArt($('cp-tile-art'), g, g.poster_url, coverPosition);
+    $('cp-status').textContent = bg
+      ? (g.is_custom_background ? 'SFONDO PERSONALIZZATO' : 'SFONDO ATTUALE')
+      : t(g.is_custom_cover ? 'cover.st_custom' : 'cover.st_default').toUpperCase();
+  }
+  if (suggestions) renderArtworkSuggestions(suggestions);
+}
+
+function renderArtworkSuggestions(data) {
+  const grid = $('cp-suggestions');
+  const list = coverMode === 'background' ? (data.background_suggestions || []) : (data.suggestions || []);
+  grid.innerHTML = '';
+  if (!list.length) {
+    grid.innerHTML = '<div class="col-span-full p-3 text-on-surface-variant font-body-sm">' + esc(t('cover.none')) + '</div>';
+    return;
+  }
+  list.forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cover-opt';
+    b.title = s.title || '';
+    b.setAttribute('aria-label', s.title || 'Artwork');
+    b.innerHTML = `<img src="${esc(s.url)}" alt="" loading="lazy" onerror="this.parentElement.remove()"><span class="cover-opt-label">${esc(s.title || 'Artwork')}</span>`;
+    b.onclick = () => applyArtwork((curGame() || {}).id, s.url, coverMode);
+    grid.appendChild(b);
+  });
+}
+
 async function openCoverModal() {
   const g = curGame();
   if (!g) return;
+  coverMode = 'cover';
+  const savedPosition = g.cover_position || { x: 50, y: 25 };
+  coverPosition = { x: Number(savedPosition.x ?? 50), y: Number(savedPosition.y ?? 25) };
   setMarqueeText($('cp-title-box'), `${t('btn.cover')}: ${g.name}`, true);
   $('cp-status').textContent = t(g.is_custom_cover ? 'cover.st_custom' : 'cover.st_default').toUpperCase();
   $('cp-badge').textContent = srcName(g).toUpperCase();
   $('cp-label').textContent = g.name;
   $('cp-url-in').value = '';
-  setArt($('cp-art'), g, g.poster_url);
+  renderCoverPosition();
+  setCoverMode('cover');
 
   const grid = $('cp-suggestions');
   grid.innerHTML = '<div class="col-span-full p-3 text-on-surface-variant font-body-sm">' + esc(t('cover.loading')) + '</div>';
@@ -526,58 +654,62 @@ async function openCoverModal() {
   try {
     const r = await fetch(`/api/game/covers?id=${encodeURIComponent(g.id)}`);
     const d = await r.json();
-    grid.innerHTML = '';
-    const list = d.suggestions || [];
-    if (!list.length) {
-      grid.innerHTML = '<div class="col-span-full p-3 text-on-surface-variant font-body-sm">' + esc(t('cover.none')) + '</div>';
-    } else {
-      list.forEach((s) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'cover-opt';
-        b.title = s.title || '';
-        b.innerHTML = `<img src="${esc(s.url)}" alt="" loading="lazy" onerror="this.parentElement.remove()">`;
-        b.onclick = () => applyCover(g.id, s.url);
-        grid.appendChild(b);
-      });
-    }
+    renderArtworkSuggestions(d);
+    $('cp-mode-cover').onclick = () => setCoverMode('cover', d);
+    $('cp-mode-background').onclick = () => setCoverMode('background', d);
   } catch (e) {
     grid.innerHTML = '<div class="col-span-full p-3 text-error font-body-sm">' + esc(t('cover.error')) + '</div>';
   }
 }
 
-async function applyCover(id, url) {
+async function applyArtwork(id, url, mode = coverMode) {
   if (!url) return;
+  const background = mode === 'background';
   try {
-    const r = await post('/api/game/cover', { id, cover_url: url });
+    const r = await post(background ? '/api/game/background' : '/api/game/cover', background
+      ? { id, background_url: url }
+      : { id, cover_url: url });
     if (!r.ok) throw new Error();
     const g = allGames.find((x) => x.id === id);
     if (g) {
-      g.poster_url = url;
-      g.is_custom_cover = true;
-      setArt($('cp-art'), g, url);
+      if (background) {
+        g.banner_url = url;
+        g.is_custom_background = true;
+        updateHero(g);
+      } else {
+        g.poster_url = url;
+        g.is_custom_cover = true;
+        g.cover_position = { ...coverPosition };
+      }
+      setArt($('cp-art'), g, url, background ? null : coverPosition);
+      if (!background) setArt($('cp-tile-art'), g, url, coverPosition);
     }
-    $('cp-status').textContent = t('cover.st_custom').toUpperCase();
+    $('cp-status').textContent = background ? 'SFONDO PERSONALIZZATO' : t('cover.st_custom').toUpperCase();
     refreshKeepSelection();
-    showToast(t('toast.cover_ok'), 'check_circle');
+    showToast(background ? 'Sfondo aggiornato' : t('toast.cover_ok'), 'check_circle');
     sfx('playSelect');
   } catch (e) {
-    showToast(t('toast.cover_err'), 'error');
+    showToast(background ? 'Errore salvataggio sfondo' : t('toast.cover_err'), 'error');
   }
 }
 
-async function browseCover() {
+function applyCover(id, url) { return applyArtwork(id, url, 'cover'); }
+
+async function browseArtwork() {
   const g = curGame();
   if (!g) return;
+  const background = coverMode === 'background';
   showToast(t('toast.file_open'), 'folder_open');
   try {
-    const r = await post('/api/game/cover/browse', { id: g.id });
+    const r = await post('/api/game/cover/browse', { id: g.id, kind: background ? 'background' : 'cover' });
     const d = await r.json();
-    if (r.ok && d.status === 'ok' && d.cover_url) {
-      g.poster_url = d.cover_url;
-      g.is_custom_cover = true;
-      setArt($('cp-art'), g, d.cover_url);
-      $('cp-status').textContent = t('cover.st_custom').toUpperCase();
+    const url = background ? d.background_url : d.cover_url;
+    if (r.ok && d.status === 'ok' && url) {
+      if (background) { g.banner_url = url; g.is_custom_background = true; updateHero(g); }
+      else { g.poster_url = url; g.is_custom_cover = true; }
+      setArt($('cp-art'), g, url, background ? null : coverPosition);
+      if (!background) setArt($('cp-tile-art'), g, url, coverPosition);
+      $('cp-status').textContent = background ? 'SFONDO PERSONALIZZATO' : t('cover.st_custom').toUpperCase();
       refreshKeepSelection();
       showToast(t('toast.file_ok'), 'check_circle');
       sfx('playSelect');
@@ -587,24 +719,41 @@ async function browseCover() {
   }
 }
 
-async function resetCover() {
+function browseCover() { return browseArtwork(); }
+
+async function resetArtwork() {
   const g = curGame();
   if (!g) return;
+  const background = coverMode === 'background';
   try {
-    const r = await post('/api/game/cover/reset', { id: g.id });
+    const r = await post(background ? '/api/game/background/reset' : '/api/game/cover/reset', { id: g.id });
     const d = await r.json();
     if (!r.ok) throw new Error();
-    g.is_custom_cover = false;
-    g.poster_url = d.default_cover || (g.appid ? `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${g.appid}/library_600x900.jpg` : null);
-    setArt($('cp-art'), g, g.poster_url);
-    $('cp-status').textContent = t('cover.st_default').toUpperCase();
+    if (background) {
+      g.is_custom_background = false;
+      g.banner_url = d.default_background || null;
+      updateHero(g);
+      setArt($('cp-art'), g, g.banner_url || artUrl(g));
+      $('cp-status').textContent = 'SFONDO ATTUALE';
+    } else {
+      g.is_custom_cover = false;
+      g.cover_position = { x: 50, y: 25 };
+      g.poster_url = d.default_cover || (g.appid ? `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${g.appid}/library_600x900.jpg` : null);
+      coverPosition = { x: 50, y: 25 };
+      renderCoverPosition();
+      setArt($('cp-art'), g, g.poster_url, coverPosition);
+      setArt($('cp-tile-art'), g, g.poster_url, coverPosition);
+      $('cp-status').textContent = t('cover.st_default').toUpperCase();
+    }
     refreshKeepSelection();
-    showToast(t('toast.cover_reset'), 'refresh');
+    showToast(background ? 'Sfondo predefinito ripristinato' : t('toast.cover_reset'), 'refresh');
     sfx('playSelect');
   } catch (e) {
-    showToast(t('toast.cover_reset_err'), 'error');
+    showToast(background ? 'Errore ripristino sfondo' : t('toast.cover_reset_err'), 'error');
   }
 }
+
+function resetCover() { return resetArtwork(); }
 
 function refreshKeepSelection() {
   const cur = curGame();
@@ -627,6 +776,9 @@ async function openLaunch() {
     modalOpen = null;
   }
   setArt($('lcover'), g, g.poster_url || artUrl(g));
+  const launchArt = g.banner_url || g.poster_url || artUrl(g);
+  const launchBg = $('launch-bg');
+  if (launchBg) launchBg.style.backgroundImage = launchArt ? `url("${String(launchArt).replace(/"/g, '%22')}")` : 'none';
   $('ltitle').textContent = g.name;
   $('lbar').style.width = '0%';
   $('ldone').classList.add('hidden');
@@ -657,6 +809,7 @@ async function openLaunch() {
           ? (g.launcher_missing ? 'Download ufficiale aperto.' : t('launch.running', { name: g.name }))
           : t('launch.err', { e: d.detail || t('launch.fail') });
         if (r.ok) {
+          if (window.SFX && !g.launcher_missing) SFX.setForeground(false);
           showToast(g.launcher_missing ? 'Download ufficiale aperto' : t('toast.launched', { name: g.name }), g.launcher_missing ? 'download' : 'play_arrow');
           rumble('rumbleSoft');
         }
@@ -861,21 +1014,40 @@ function navigateModal(dir) {
   }
 
   if (modalOpen === 'cover') {
+    const isModeCover = focusEl.id === 'cp-mode-cover';
+    const isModeBackground = focusEl.id === 'cp-mode-background';
     const isBrowse = focusEl.id === 'cp-browse-btn';
     const isReset = focusEl.id === 'cp-reset-btn';
     const isUrlIn = focusEl.id === 'cp-url-in';
     const isUrlBtn = focusEl.id === 'cp-apply-url-btn';
     const isClose = focusEl.id === 'cp-close-btn';
+    const isPosition = focusEl.id === 'cp-position-x' || focusEl.id === 'cp-position-y';
     const suggestions = Array.from(document.querySelectorAll('#cp-suggestions .cover-opt'));
     const isGrid = focusEl.classList.contains('cover-opt');
+
+    if (isModeCover || isModeBackground) {
+      if (dir === 'left') { setFocus($('cp-mode-cover')); sfx('playMove'); }
+      else if (dir === 'right') { setFocus($('cp-mode-background')); sfx('playMove'); }
+      else if (dir === 'down') { setFocus($('cp-browse-btn')); sfx('playMove'); }
+      return;
+    }
 
     if (isBrowse || isReset) {
       if (dir === 'left') { setFocus($('cp-browse-btn')); sfx('playMove'); }
       else if (dir === 'right') { setFocus($('cp-reset-btn')); sfx('playMove'); }
+      else if (dir === 'up') { setFocus(coverMode === 'background' ? $('cp-mode-background') : $('cp-mode-cover')); sfx('playMove'); }
       else if (dir === 'down') {
-        const target = suggestions[0] || $('cp-url-in');
+        const target = coverMode === 'cover' ? $('cp-position-x') : (suggestions[0] || $('cp-url-in'));
         setFocus(target); sfx('playMove');
       }
+      return;
+    }
+
+    if (isPosition) {
+      if (dir === 'left') nudgeCoverPosition(focusEl.id === 'cp-position-y' ? 'y' : 'x', -5);
+      else if (dir === 'right') nudgeCoverPosition(focusEl.id === 'cp-position-y' ? 'y' : 'x', 5);
+      else if (dir === 'up') setFocus(focusEl.id === 'cp-position-y' ? $('cp-position-x') : $('cp-browse-btn'));
+      else if (dir === 'down') setFocus(focusEl.id === 'cp-position-x' ? $('cp-position-y') : (suggestions[0] || $('cp-url-in')));
       return;
     }
 
@@ -888,7 +1060,7 @@ function navigateModal(dir) {
         if (gIdx < suggestions.length - 1) { setFocus(suggestions[gIdx + 1]); sfx('playMove'); }
       } else if (dir === 'up') {
         if (gIdx - cols >= 0) { setFocus(suggestions[gIdx - cols]); sfx('playMove'); }
-        else { setFocus($('cp-browse-btn')); sfx('playMove'); }
+        else { setFocus(coverMode === 'cover' ? $('cp-position-y') : $('cp-browse-btn')); sfx('playMove'); }
       } else if (dir === 'down') {
         if (gIdx + cols < suggestions.length) { setFocus(suggestions[gIdx + cols]); sfx('playMove'); }
         else { setFocus($('cp-url-in')); sfx('playMove'); }
@@ -936,6 +1108,10 @@ function activate() {
 
 // ---------------------------------------------------------------- Gamepad & Input Listener
 GamepadManager.on('action', ({ action }) => {
+  markActivity();
+  // FEYORA is primarily gamepad-driven. Attempt to unlock WebView2 audio on
+  // controller input so music and UI cues work without a mouse/keyboard click.
+  if (window.SFX) SFX.unlockMusic();
   if (modalOpen === 'settings' && (action === 'lb' || action === 'rb')) { switchSetCat(action === 'lb' ? -1 : 1, true); return; }
   if (action === 'f11') return toggleFullscreen();
 
@@ -1013,12 +1189,15 @@ function renderPadLabel() {
   $('gp-pill').classList.toggle('text-tertiary-fixed', padState.connected);
 }
 GamepadManager.on('connectionChange', ({ connected, id }) => {
+  markActivity();
   padState = { connected, id };
   renderPadLabel();
   renderStoreFavoriteHint();
   if (connected) {
     showToast(t('w.pad_on'), 'sports_esports');
     rumble('rumbleHeavy');
+  } else {
+    showToast(t('w.no_pad'), 'sports_esports');
   }
 });
 
@@ -1027,6 +1206,7 @@ GamepadManager.on('connectionChange', ({ connected, id }) => {
 let media = { active: false, playing: false, position: 0, duration: 0, key: '', stamp: 0 };
 
 async function pollMedia() {
+  if (document.visibilityState === 'hidden' || !document.hasFocus()) return;
   try {
     const res = await fetch('/api/media');
     if (!res.ok) return;
@@ -1144,6 +1324,7 @@ function applySettings() {
   applyWidgets();
   applyGlyphs();
   if (window.SFX) { SFX.enabled = settings.sfx !== false; SFX.volume = (settings.sfx_volume == null ? 70 : settings.sfx_volume) / 100; }
+  syncMusicScene();
   try {
     GamepadManager.rumbleEnabled = settings.rumble !== false;
     GamepadManager.rumbleScale = (settings.rumble_strength == null ? 100 : settings.rumble_strength) / 100;
@@ -1185,6 +1366,10 @@ async function setSetting(path, value) {
   setPath(settings, path, value);
   applySettings();
   if (path === 'platforms.steam' || path === 'platforms.epic' || path === 'sort') { selectedIndex = 0; renderCarousel(); }
+  if (path === 'show_emu') {
+    if (value === false && currentCat === 'emu') setCategory('all');
+    else renderCategories();
+  }
   try { const body = {}; setPath(body, path, value); await post('/api/settings', body); } catch (e) { /* offline */ }
 }
 
@@ -1213,6 +1398,7 @@ function setCats() {
       tg('widgets.telemetry', 'set.w_tele', 'set.show_d'),
     ] },
     { id: 'library', label: 'set.cat.library', icon: 'video_library', rows: [
+      tg('show_emu', 'set.emu', 'set.emu_d'),
       tg('platforms.steam', 'set.steam', 'set.steam_d'),
       tg('platforms.epic', 'set.epic', 'set.epic_d'),
       sel('sort', 'set.sort', 'set.sort_d', () => ['recent', 'hours', 'added'].map((k) => [k, t('sort.' + k)]), 'recent'),
@@ -1479,9 +1665,9 @@ async function fillSgdbArt() {
       if (!d.enabled) break;
       if (d.error) { if (d.error === 'offline' || /chiave/i.test(d.error)) break; continue; }
       g.sgdb_done = true;
-      if (d.hero) g.banner_url = d.hero;
-      if (d.poster && !g.is_custom_cover) g.poster_url = d.poster;
-      if (d.poster || d.hero) updateCardArt(g);
+      if (d.cover && !g.is_custom_cover) g.poster_url = d.cover;
+      if (d.background && !g.is_custom_background) g.banner_url = d.background;
+      if (d.cover || d.background) updateCardArt(g);
     }
   } finally {
     sgdbRunning = false;
@@ -1631,6 +1817,22 @@ async function openUrl(url) {
   }
 }
 
+function storeOfferUrl(tile, preferred = null) {
+  if (!tile || !tile.offers) return '';
+  const candidates = [];
+  if (preferred && tile.offers[preferred]) candidates.push(tile.offers[preferred].url);
+  if (tile.best && tile.offers[tile.best]) candidates.push(tile.offers[tile.best].url);
+  Object.values(tile.offers).forEach((offer) => candidates.push(offer && offer.url));
+  const url = candidates.find((value) => /^https?:\/\//i.test(String(value || '').trim()));
+  return String(url || '').trim();
+}
+
+function openStoreTile(tile, preferred = null) {
+  const url = storeOfferUrl(tile, preferred);
+  if (url) openUrl(url);
+  else showToast(t('toast.open_page_err'), 'error');
+}
+
 const STORE_ICONS = { steam: 'desktop_windows', epic: 'storefront', xbox: 'sports_esports' };
 const STORE_LABEL = { steam: 'Steam', epic: 'Epic Games', xbox: 'Xbox Store' };
 let storeSpot = null;
@@ -1723,8 +1925,8 @@ function buildStoreTile(t, idx) {
     const chain = [t.image2, t.poster].filter((u) => u && u !== t.image);
     img.onerror = () => { const next = chain.shift(); if (next) img.src = next; else img.remove(); };
   }
-  const open = (store) => { const o = t.offers[store]; if (o && o.url) openUrl(o.url); };
-  el.onclick = () => open(t.best || Object.keys(t.offers)[0]);
+  const open = (store) => openStoreTile(t, store);
+  el.onclick = () => openStoreTile(t);
   el.querySelector('.store-fav').onclick = (ev) => { ev.stopPropagation(); toggleStoreFavorite(t); };
   el.onmouseenter = () => { if (storeSpot !== t) setStoreSpotlight(t); };
   el.querySelectorAll('.sc-row[data-store]').forEach((r) => {
@@ -1852,6 +2054,7 @@ function navigateStore(dir) {
 
 // ---------------------------------------------------------------- Telemetry & Clock
 async function pollTelemetry() {
+  if (document.visibilityState === 'hidden' || !document.hasFocus()) return;
   try {
     const res = await fetch('/api/telemetry');
     if (!res.ok) return;
@@ -1880,6 +2083,24 @@ function updateClock() {
 
 // ---------------------------------------------------------------- Bindings & Initialization
 function bind() {
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((eventName) => {
+    window.addEventListener(eventName, markActivity, { passive: true });
+  });
+  window.addEventListener('blur', () => {
+    if (window.SFX) SFX.setForeground(false);
+  });
+  window.addEventListener('focus', () => {
+    if (window.SFX) SFX.setForeground(true);
+    markActivity();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (window.SFX) SFX.setForeground(document.hasFocus());
+      markActivity();
+    } else if (window.SFX) {
+      SFX.setForeground(false);
+    }
+  });
   // Gli input del launcher sono usati anche senza mouse: apri la tastiera
   // virtuale quando l'utente li attiva con click o con A sul gamepad.
   document.addEventListener('click', (e) => {
@@ -1927,12 +2148,14 @@ function bind() {
   $('cp-reset-btn').onclick = resetCover;
   $('cp-apply-url-btn').onclick = () => applyCover((curGame() || {}).id, $('cp-url-in').value.trim());
   $('cp-close-btn').onclick = closeModal;
+  $('cp-position-x').oninput = (e) => { coverPosition.x = Number(e.target.value); scheduleCoverPositionSave(); };
+  $('cp-position-y').oninput = (e) => { coverPosition.y = Number(e.target.value); scheduleCoverPositionSave(); };
 
   // Settings modal
   $('st-close-top').onclick = closeModal;
 
   // Launch modal
-  $('ldone').onclick = closeModal;
+  $('ldone').onclick = returnToHome;
   $('lcancel').onclick = closeModal;
 
   // Recalculate marquees on window resize
@@ -1952,6 +2175,7 @@ function bind() {
 
 async function init() {
   bind();
+  markActivity();
 
   try {
     const s = await (await fetch('/api/settings')).json();

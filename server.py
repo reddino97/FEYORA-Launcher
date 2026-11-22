@@ -45,6 +45,8 @@ DEFAULT_DATA = {
     "playtime": {},
     "last_played": {},
     "custom_covers": {},
+    "cover_positions": {},
+    "custom_backgrounds": {},
     "settings": {
         "sfx": True,
         "rumble": True,
@@ -55,6 +57,7 @@ DEFAULT_DATA = {
         "theme": "nexus",
         "lang": "it",
         "sort": "recent",
+        "show_emu": True,
         "ui_scale": 100,
         "reduce_motion": False,
         "show_backdrop": True,
@@ -185,6 +188,8 @@ def get_games():
     last_played = data.get("last_played", {})
     custom = data.get("custom_games", [])
     custom_covers = data.get("custom_covers", {})
+    cover_positions = data.get("cover_positions", {})
+    custom_backgrounds = data.get("custom_backgrounds", {})
     
     all_games = []
     # Merge scanned games
@@ -201,6 +206,12 @@ def get_games():
             item["is_custom_cover"] = True
         else:
             item["is_custom_cover"] = False
+        item["cover_position"] = cover_positions.get(item["id"], {"x": 50, "y": 25})
+        if item["id"] in custom_backgrounds and custom_backgrounds[item["id"]]:
+            item["banner_url"] = custom_backgrounds[item["id"]]
+            item["is_custom_background"] = True
+        else:
+            item["is_custom_background"] = False
         all_games.append(item)
         
     # Merge custom games
@@ -214,6 +225,12 @@ def get_games():
             item["is_custom_cover"] = True
         else:
             item["is_custom_cover"] = False
+        item["cover_position"] = cover_positions.get(item["id"], {"x": 50, "y": 25})
+        if item["id"] in custom_backgrounds and custom_backgrounds[item["id"]]:
+            item["banner_url"] = custom_backgrounds[item["id"]]
+            item["is_custom_background"] = True
+        else:
+            item["is_custom_background"] = False
         all_games.append(item)
         
     sgdb_cache = data.get("sgdb_cache", {})
@@ -225,11 +242,14 @@ def get_games():
                 item["added_at"] = 0
         c = sgdb_cache.get(item["id"])
         if c is not None:
-            item["sgdb_done"] = True
-            if c.get("hero"):
-                item["banner_url"] = c["hero"]
-            if c.get("poster") and not item.get("is_custom_cover"):
-                item["poster_url"] = c["poster"]
+            # Le versioni precedenti salvavano poster/hero. Non segnare quei
+            # record come completati: devono essere richiesti nel nuovo formato.
+            item["sgdb_done"] = bool(c.get("cover") or c.get("background"))
+            if c.get("background"):
+                if not item.get("is_custom_background"):
+                    item["banner_url"] = c["background"]
+            if c.get("cover") and not item.get("is_custom_cover"):
+                item["poster_url"] = c["cover"]
 
     return {
         "games": all_games,
@@ -374,6 +394,7 @@ def get_game_cover_options(id: str = Query(...)):
     
     # 1. Build list of potential alternative online covers
     suggestions = []
+    background_suggestions = []
     
     if appid:
         # Steam official assets
@@ -384,6 +405,10 @@ def get_game_cover_options(id: str = Query(...)):
         suggestions.append({
             "title": "Steam Header Orizzontale",
             "url": f"https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/header.jpg"
+        })
+        background_suggestions.append({
+            "title": "Steam Hero (sfondo widescreen)",
+            "url": f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{appid}/library_hero.jpg"
         })
         suggestions.append({
             "title": "Steam Hero Banner",
@@ -415,12 +440,15 @@ def get_game_cover_options(id: str = Query(...)):
         try:
             gid = (data.get("sgdb_cache", {}).get(id) or {}).get("gid") or sgdb.find_game_id(sg_key, game_name, appid)
             if gid:
-                grid = [{"title": "SteamGridDB", "url": p["url"]} for p in sgdb.posters(sg_key, gid, 10)]
+                grid = [{"title": "SteamGridDB · copertina", "url": p["url"]} for p in sgdb.covers(sg_key, gid, 12)]
                 suggestions = grid + suggestions
+                backgrounds = [{"title": "SteamGridDB · sfondo", "url": p["url"]} for p in sgdb.backgrounds(sg_key, gid, 12)]
+                background_suggestions = backgrounds + background_suggestions
         except Exception as e:
             print("SteamGridDB suggestions failed:", e)
 
     current_cover = custom_covers.get(id) or target_game.get("poster_url")
+    current_background = data.get("custom_backgrounds", {}).get(id) or target_game.get("banner_url")
     is_custom = bool(custom_covers.get(id))
     # Look up original poster from cached_games
     default_cover = target_game.get("poster_url")
@@ -435,11 +463,15 @@ def get_game_cover_options(id: str = Query(...)):
         "id": id,
         "name": game_name,
         "current_cover": current_cover,
+        "cover_position": data.get("cover_positions", {}).get(id, {"x": 50, "y": 25}),
         "is_custom": is_custom,
         "default_cover": default_cover,
+        "current_background": current_background,
+        "default_background": target_game.get("banner_url"),
         "art_style": target_game.get("art_style"),
         "palette": target_game.get("palette"),
-        "suggestions": suggestions
+        "suggestions": suggestions,
+        "background_suggestions": background_suggestions
     }
 
 @app.post("/api/game/cover")
@@ -454,6 +486,34 @@ def set_game_cover(payload: Dict[str, Any] = Body(...)):
     save_data(data)
     return {"status": "ok", "id": game_id, "cover_url": cover_url}
 
+
+@app.post("/api/game/cover/position")
+def set_game_cover_position(payload: Dict[str, Any] = Body(...)):
+    game_id = payload.get("id")
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Missing game id")
+    try:
+        x = max(0, min(100, float(payload.get("x", 50))))
+        y = max(0, min(100, float(payload.get("y", 25))))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid cover position")
+    data = load_data()
+    data.setdefault("cover_positions", {})[game_id] = {"x": x, "y": y}
+    save_data(data)
+    return {"status": "ok", "id": game_id, "cover_position": {"x": x, "y": y}}
+
+
+@app.post("/api/game/background")
+def set_game_background(payload: Dict[str, Any] = Body(...)):
+    game_id = payload.get("id")
+    background_url = payload.get("background_url")
+    if not game_id or not background_url:
+        raise HTTPException(status_code=400, detail="Missing game id or background_url")
+    data = load_data()
+    data.setdefault("custom_backgrounds", {})[game_id] = background_url.strip()
+    save_data(data)
+    return {"status": "ok", "id": game_id, "background_url": background_url}
+
 @app.post("/api/game/cover/reset")
 def reset_game_cover(payload: Dict[str, Any] = Body(...)):
     game_id = payload.get("id")
@@ -463,7 +523,8 @@ def reset_game_cover(payload: Dict[str, Any] = Body(...)):
     data = load_data()
     if "custom_covers" in data and game_id in data["custom_covers"]:
         del data["custom_covers"][game_id]
-        save_data(data)
+    data.setdefault("cover_positions", {}).pop(game_id, None)
+    save_data(data)
 
     default_cover = None
     for g in cached_games + data.get("custom_games", []):
@@ -473,9 +534,26 @@ def reset_game_cover(payload: Dict[str, Any] = Body(...)):
 
     return {"status": "ok", "id": game_id, "default_cover": default_cover}
 
+
+@app.post("/api/game/background/reset")
+def reset_game_background(payload: Dict[str, Any] = Body(...)):
+    game_id = payload.get("id")
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Missing game id")
+    data = load_data()
+    data.setdefault("custom_backgrounds", {}).pop(game_id, None)
+    save_data(data)
+    default_background = None
+    for g in cached_games + data.get("custom_games", []):
+        if g["id"] == game_id:
+            default_background = g.get("banner_url")
+            break
+    return {"status": "ok", "id": game_id, "default_background": default_background}
+
 @app.post("/api/game/cover/browse")
 def browse_game_cover(payload: Dict[str, Any] = Body(...)):
     game_id = payload.get("id")
+    kind = payload.get("kind", "cover")
     if not game_id:
         raise HTTPException(status_code=400, detail="Missing game id")
         
@@ -518,10 +596,16 @@ def browse_game_cover(payload: Dict[str, Any] = Body(...)):
     
     local_url = f"/covers/{filename}"
     data = load_data()
-    data.setdefault("custom_covers", {})[game_id] = local_url
+    if kind == "background":
+        data.setdefault("custom_backgrounds", {})[game_id] = local_url
+    else:
+        data.setdefault("custom_covers", {})[game_id] = local_url
     save_data(data)
-    
-    return {"status": "ok", "id": game_id, "cover_url": local_url}
+    return {
+        "status": "ok",
+        "id": game_id,
+        "background_url" if kind == "background" else "cover_url": local_url,
+    }
 
 # ==================================================================
 
@@ -605,7 +689,10 @@ async def _media_session():
     for s in mgr.get_sessions():
         if "spotify" in (s.source_app_user_model_id or "").lower():
             return s
-    return mgr.get_current_session()
+    # This widget is specifically for Spotify. Do not fall back to the
+    # current Windows media session: FEYORA's ambient audio is also exposed
+    # by WebView2 and must not appear as a track in the bottom player.
+    return None
 
 @app.get("/api/media")
 async def get_media():
@@ -689,7 +776,12 @@ async def media_control(payload: Dict[str, Any] = Body(...)):
     except Exception:
         return {"ok": False}
 
-OPEN_HOSTS = {"store.steampowered.com", "store.epicgames.com", "www.xbox.com", "apps.microsoft.com", "www.microsoft.com"}
+OPEN_HOSTS = {
+    "store.steampowered.com", "steamcommunity.com",
+    "store.epicgames.com", "epicgames.com", "www.epicgames.com",
+    "xbox.com", "www.xbox.com",
+    "microsoft.com", "www.microsoft.com", "apps.microsoft.com",
+}
 
 @app.post("/api/launcher/install")
 def install_launcher(payload: Dict[str, Any] = Body(...)):
@@ -714,7 +806,9 @@ def open_external(payload: Dict[str, Any] = Body(...)):
     url = payload.get("url")
     if url:
         p = urllib.parse.urlparse(str(url))
-        if p.scheme != "https" or p.hostname not in OPEN_HOSTS:
+        hostname = (p.hostname or "").lower().rstrip(".")
+        allowed = hostname in OPEN_HOSTS or any(hostname.endswith("." + host) for host in OPEN_HOSTS)
+        if p.scheme.lower() not in {"http", "https"} or not allowed:
             return {"ok": False}
         uri = str(url)
     else:
@@ -750,14 +844,18 @@ def sgdb_set_key(payload: Dict[str, Any] = Body(...)):
 
 @app.get("/api/sgdb/art")
 def sgdb_art(id: str = Query(...), force: bool = False):
-    """Poster e hero di un gioco da SteamGridDB, con cache su disco."""
+    """Cover e sfondo di un gioco da SteamGridDB, con cache su disco."""
     data = load_data()
     key = (data.get("settings") or {}).get("sgdb_key")
     if not key:
         return {"enabled": False}
     cache = data.setdefault("sgdb_cache", {})
     hit = cache.get(id)
-    if hit and not force and (hit.get("poster") or hit.get("hero") or time.time() - hit.get("ts", 0) < 7 * 86400):
+    # Riusa solo una cache completa. Una risposta parziale (o vuota) deve
+    # poter essere ritentata, altrimenti un errore temporaneo di SGDB resta
+    # invisibile fino alla scadenza della cache.
+    cache_complete = bool(hit and hit.get("cover") and hit.get("background"))
+    if cache_complete and not force and time.time() - hit.get("ts", 0) < 7 * 86400:
         return {"enabled": True, **hit}
     game = next((g for g in cached_games + data.get("custom_games", []) if g["id"] == id), None)
     if not game:
@@ -815,7 +913,7 @@ def custom_remove(payload: Dict[str, Any] = Body(...)):
     if len(data["custom_games"]) == before:
         raise HTTPException(status_code=404, detail="Custom game not found")
     data["favorites"] = [f for f in data.get("favorites", []) if f != gid]
-    for k in ("custom_covers", "playtime", "last_played", "sgdb_cache"):
+    for k in ("custom_covers", "cover_positions", "custom_backgrounds", "playtime", "last_played", "sgdb_cache"):
         data.get(k, {}).pop(gid, None)
     save_data(data)
     return {"status": "ok", "id": gid}
@@ -823,7 +921,9 @@ def custom_remove(payload: Dict[str, Any] = Body(...)):
 # ==================== STORE / COMPARATORE PREZZI ====================
 
 def _store_opts():
-    return store.make_opts(_settings_with_defaults(load_data()))
+    settings = _settings_with_defaults(load_data())
+    settings["store_favorites"] = settings.get("store_favorites") or []
+    return store.make_opts(settings)
 
 
 @app.get("/api/store/home")

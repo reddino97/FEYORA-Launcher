@@ -8,6 +8,7 @@ class GamepadEngine {
     this.repeatDelay = 350;
     this.repeatInterval = 130;
     this.deadzone = 0.35;
+    this.pollTimer = null;
     this.rumbleEnabled = true;
     this.rumbleScale = 1;
 
@@ -38,7 +39,9 @@ class GamepadEngine {
 
   initEvents() {
     window.addEventListener('gamepadconnected', (e) => {
-      this.gamepadIndex = e.gamepad.index;
+      if (this.gamepadIndex === null || !this.getActivePad()) this.gamepadIndex = e.gamepad.index;
+      this.lastState = {};
+      this.nextRepeat = {};
       console.log('Gamepad connected:', e.gamepad.id);
       this.trigger('connectionChange', { connected: true, id: e.gamepad.id });
       this.rumbleSoft();
@@ -48,6 +51,8 @@ class GamepadEngine {
       if (this.gamepadIndex === e.gamepad.index) {
         this.gamepadIndex = null;
       }
+      this.lastState = {};
+      this.nextRepeat = {};
       console.log('Gamepad disconnected:', e.gamepad.id);
       this.trigger('connectionChange', { connected: false });
     });
@@ -146,27 +151,24 @@ class GamepadEngine {
   startPolling() {
     const poll = () => {
       this.pollGamepad();
-      requestAnimationFrame(poll);
+      const delay = document.visibilityState === 'hidden' ? 500 : (this.getActivePad() ? 16 : 120);
+      this.pollTimer = setTimeout(poll, delay);
     };
-    requestAnimationFrame(poll);
+    this.pollTimer = setTimeout(poll, 0);
+  }
+
+  getActivePad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    if (this.gamepadIndex !== null && pads[this.gamepadIndex]) return pads[this.gamepadIndex];
+    for (let i = 0; i < pads.length; i++) {
+      if (pads[i]) { this.gamepadIndex = i; return pads[i]; }
+    }
+    return null;
   }
 
   pollGamepad() {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    let pad = null;
-
-    if (this.gamepadIndex !== null && pads[this.gamepadIndex]) {
-      pad = pads[this.gamepadIndex];
-    } else {
-      for (let i = 0; i < pads.length; i++) {
-        if (pads[i]) {
-          pad = pads[i];
-          this.gamepadIndex = i;
-          break;
-        }
-      }
-    }
-
+    if (document.visibilityState === 'hidden' || !document.hasFocus()) return;
+    const pad = this.getActivePad();
     if (!pad) return;
 
     const btn = (idx) => pad.buttons[idx] && (pad.buttons[idx].pressed || (typeof pad.buttons[idx].value === 'number' && pad.buttons[idx].value > 0.45));
@@ -215,6 +217,7 @@ class GamepadEngine {
   }
 
   handleAction(action) {
+    if (document.visibilityState === 'hidden' || !document.hasFocus()) return;
     this.trigger('action', { action, zone: this.currentZone });
   }
 }

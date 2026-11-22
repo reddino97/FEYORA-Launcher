@@ -3,7 +3,7 @@
 ; Facoltativo: metti MicrosoftEdgeWebview2Setup.exe in redist\ per installare WebView2 se manca.
 
 #define AppName "FEYORA Launcher"
-#define AppVersion "3.0.0"
+#define AppVersion "3.0.1"
 #define AppExe "FEYORA.exe"
 
 [Setup]
@@ -37,6 +37,11 @@ Name: "autostart"; Description: "Avvia FEYORA all'accesso a Windows"; GroupDescr
 [Files]
 Source: "dist\FEYORA\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "redist\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall skipifsourcedoesntexist; Check: NeedsWebView2
+
+; Elimina i moduli/runtime obsoleti rimasti da versioni precedenti
+; prima di copiare il nuovo contenuto PyInstaller.
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\_internal"
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
